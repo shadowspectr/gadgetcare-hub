@@ -10,9 +10,9 @@ export const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold">
-              <span className="text-primary">Доктор</span>{" "}
-              <span className="text-secondary">Гаджет</span>
+            <h1 className="text-2xl font-bold tracking-wider italic uppercase">
+              <span className="text-primary font-extrabold">Доктор</span>{" "}
+              <span className="text-secondary font-extrabold">Гаджет</span>
             </h1>
           </div>
 
