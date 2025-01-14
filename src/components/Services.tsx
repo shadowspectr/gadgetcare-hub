@@ -24,6 +24,7 @@ type ServicePrice = {
   id: string;
   name: string;
   price: number;
+  service: string;
 };
 
 export const Services = () => {
@@ -57,7 +58,13 @@ export const Services = () => {
       return;
     }
 
-    setPrices((prev) => ({ ...prev, [serviceId]: data }));
+    // Transform the data to include the service property
+    const transformedData = data.map(price => ({
+      ...price,
+      service: price.name
+    }));
+
+    setPrices((prev) => ({ ...prev, [serviceId]: transformedData }));
   };
 
   useEffect(() => {
