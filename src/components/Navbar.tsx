@@ -10,14 +10,14 @@ export const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold tracking-wider italic uppercase">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-wider italic uppercase">
               <span className="text-primary font-extrabold">Доктор</span>{" "}
-              <span className="text-secondary font-extrabold">Гаджет</span>
+              <span className="text-primary font-extrabold">Гаджет</span>
             </h1>
           </div>
 
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-4 lg:space-x-8">
             <a href="#" className="text-gray-700 hover:text-primary transition-colors">
               Главная
             </a>
@@ -30,7 +30,7 @@ export const Navbar = () => {
             <a href="#contact" className="text-gray-700 hover:text-primary transition-colors">
               Контакты
             </a>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button className="bg-primary hover:bg-primary/90 whitespace-nowrap">
               <Phone className="mr-2 h-4 w-4" />
               Заказать звонок
             </Button>
