@@ -1,19 +1,16 @@
 import { ArrowRight, Smartphone, Laptop, Tablet } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { OrderStatusDialog } from "./OrderStatusDialog";
 
 export const Hero = () => {
-  const navigate = useNavigate();
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
 
   const handleRepairRequest = () => {
     const contactSection = document.getElementById('contact');
     if (contactSection) {
       contactSection.scrollIntoView({ behavior: 'smooth' });
     }
-  };
-
-  const handleCheckStatus = () => {
-    navigate('/admin');
   };
 
   return (
@@ -41,7 +38,7 @@ export const Hero = () => {
                 size="lg" 
                 variant="outline" 
                 className="w-full sm:w-auto"
-                onClick={handleCheckStatus}
+                onClick={() => setIsStatusDialogOpen(true)}
               >
                 Узнать статус ремонта
               </Button>
@@ -73,6 +70,10 @@ export const Hero = () => {
           </div>
         </div>
       </div>
+      <OrderStatusDialog
+        isOpen={isStatusDialogOpen}
+        onClose={() => setIsStatusDialogOpen(false)}
+      />
     </div>
   );
 };
