@@ -2,32 +2,49 @@ import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Contact = () => {
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     message: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
-    // Here you would typically send the data to your backend
-    console.log('Form submitted:', formData);
-    
-    toast({
-      title: "Заявка отправлена",
-      description: "Мы свяжемся с вами в ближайшее время",
-    });
+    try {
+      const { error } = await supabase.functions.invoke('send-telegram', {
+        body: formData
+      });
 
-    // Reset form
-    setFormData({
-      name: '',
-      phone: '',
-      message: ''
-    });
+      if (error) throw error;
+
+      toast({
+        title: "Заявка отправлена",
+        description: "Мы свяжемся с вами в ближайшее время",
+      });
+
+      // Reset form
+      setFormData({
+        name: '',
+        phone: '',
+        message: ''
+      });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось отправить заявку. Пожалуйста, попробуйте позже.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -62,6 +79,7 @@ export const Contact = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-sm sm:text-base"
                   placeholder="Иван Иванов"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div>
@@ -76,6 +94,7 @@ export const Contact = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-sm sm:text-base"
                   placeholder="+7 (999) 999-99-99"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div>
@@ -90,10 +109,15 @@ export const Contact = () => {
                   rows={4}
                   placeholder="Опишите проблему..."
                   required
+                  disabled={isLoading}
                 />
               </div>
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                Отправить заявку
+              <Button 
+                type="submit" 
+                className="w-full bg-primary hover:bg-primary/90"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Отправка...' : 'Отправить заявку'}
               </Button>
             </form>
           </div>
