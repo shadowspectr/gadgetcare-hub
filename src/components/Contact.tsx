@@ -143,11 +143,19 @@ export const Contact = () => {
                 </div>
               </div>
             </div>
-            <div className="bg-gray-200 h-48 sm:h-64 rounded-lg">
-              {/* Here you would integrate a real map */}
-              <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm sm:text-base">
-                Карта сервисных центров
-              </div>
+            <div className="w-full h-[400px] rounded-lg overflow-hidden">
+              <a 
+                href="https://yandex.ru/maps/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;source=constructorStatic" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full h-full"
+              >
+                <img 
+                  src="https://api-maps.yandex.ru/services/constructor/1.0/static/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;width=500&amp;height=400&amp;lang=ru_RU" 
+                  alt="Карта расположения сервисного центра"
+                  className="w-full h-full object-cover"
+                />
+              </a>
             </div>
           </div>
         </div>
