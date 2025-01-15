@@ -1,7 +1,43 @@
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
 export const Contact = () => {
+  const { toast } = useToast();
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    message: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Here you would typically send the data to your backend
+    console.log('Form submitted:', formData);
+    
+    toast({
+      title: "Заявка отправлена",
+      description: "Мы свяжемся с вами в ближайшее время",
+    });
+
+    // Reset form
+    setFormData({
+      name: '',
+      phone: '',
+      message: ''
+    });
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   return (
     <section id="contact" className="py-12 sm:py-16 bg-gray-50">
       <div className="container mx-auto px-4">
@@ -13,15 +49,19 @@ export const Contact = () => {
                 Оставьте заявку, и мы перезвоним вам в течение 15 минут
               </p>
             </div>
-            <form className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ваше имя
                 </label>
                 <input
                   type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-sm sm:text-base"
                   placeholder="Иван Иванов"
+                  required
                 />
               </div>
               <div>
@@ -30,8 +70,12 @@ export const Contact = () => {
                 </label>
                 <input
                   type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-sm sm:text-base"
                   placeholder="+7 (999) 999-99-99"
+                  required
                 />
               </div>
               <div>
@@ -39,12 +83,16 @@ export const Contact = () => {
                   Сообщение
                 </label>
                 <textarea
+                  name="message"
+                  value={formData.message}
+                  onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-sm sm:text-base"
                   rows={4}
                   placeholder="Опишите проблему..."
+                  required
                 />
               </div>
-              <Button className="w-full bg-primary hover:bg-primary/90">
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
                 Отправить заявку
               </Button>
             </form>

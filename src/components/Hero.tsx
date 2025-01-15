@@ -1,7 +1,21 @@
 import { ArrowRight, Smartphone, Laptop, Tablet } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 export const Hero = () => {
+  const navigate = useNavigate();
+
+  const handleRepairRequest = () => {
+    const contactSection = document.getElementById('contact');
+    if (contactSection) {
+      contactSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleCheckStatus = () => {
+    navigate('/admin');
+  };
+
   return (
     <div className="pt-24 pb-16 bg-gradient-to-br from-white to-gray-50">
       <div className="container mx-auto px-4">
@@ -15,11 +29,20 @@ export const Hero = () => {
               Быстрый и качественный ремонт смартфонов, планшетов и ноутбуков с гарантией
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
+              <Button 
+                size="lg" 
+                className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
+                onClick={handleRepairRequest}
+              >
                 Оставить заявку
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" className="w-full sm:w-auto">
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="w-full sm:w-auto"
+                onClick={handleCheckStatus}
+              >
                 Узнать статус ремонта
               </Button>
             </div>

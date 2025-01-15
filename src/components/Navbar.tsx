@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
+  const handleCallRequest = () => {
+    const contactSection = document.getElementById('contact');
+    if (contactSection) {
+      contactSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <nav className="fixed w-full bg-white shadow-sm z-50">
       <div className="container mx-auto px-4">
@@ -30,7 +37,10 @@ export const Navbar = () => {
             <a href="#contact" className="text-gray-700 hover:text-primary transition-colors">
               Контакты
             </a>
-            <Button className="bg-primary hover:bg-primary/90 whitespace-nowrap">
+            <Button 
+              className="bg-primary hover:bg-primary/90 whitespace-nowrap"
+              onClick={handleCallRequest}
+            >
               <Phone className="mr-2 h-4 w-4" />
               Заказать звонок
             </Button>
@@ -63,7 +73,10 @@ export const Navbar = () => {
               <a href="#contact" className="text-gray-700 hover:text-primary transition-colors">
                 Контакты
               </a>
-              <Button className="bg-primary hover:bg-primary/90">
+              <Button 
+                className="bg-primary hover:bg-primary/90"
+                onClick={handleCallRequest}
+              >
                 <Phone className="mr-2 h-4 w-4" />
                 Заказать звонок
               </Button>
