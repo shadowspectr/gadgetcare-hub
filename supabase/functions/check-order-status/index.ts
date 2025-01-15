@@ -23,6 +23,7 @@ serve(async (req) => {
 
   try {
     const { orderNumber } = await req.json()
+    console.log('Searching for order:', orderNumber)
 
     // Authenticate with LiveSklad
     const authResponse = await fetch('https://api.livesklad.com/auth', {
@@ -37,10 +38,12 @@ serve(async (req) => {
     })
 
     if (!authResponse.ok) {
+      console.error('Auth response not OK:', await authResponse.text())
       throw new Error('Failed to authenticate with LiveSklad')
     }
 
     const { token } = await authResponse.json() as LiveSkladAuthResponse
+    console.log('Successfully authenticated with LiveSklad')
 
     // Search for the order
     const ordersResponse = await fetch(`https://api.livesklad.com/company/orders?number=${orderNumber}`, {
@@ -50,11 +53,16 @@ serve(async (req) => {
     })
 
     if (!ordersResponse.ok) {
+      console.error('Orders response not OK:', await ordersResponse.text())
       throw new Error('Failed to fetch orders from LiveSklad')
     }
 
-    const orders = await ordersResponse.json() as LiveSkladOrder[]
-    const order = orders.find(o => o.number === orderNumber)
+    const ordersData = await ordersResponse.json()
+    console.log('LiveSklad API response:', ordersData)
+
+    // Handle both array and object responses
+    const orders = Array.isArray(ordersData) ? ordersData : [ordersData]
+    const order = orders.find((o: LiveSkladOrder) => o.number === orderNumber)
 
     return new Response(
       JSON.stringify({
@@ -65,6 +73,7 @@ serve(async (req) => {
       },
     )
   } catch (error) {
+    console.error('Error in check-order-status:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
