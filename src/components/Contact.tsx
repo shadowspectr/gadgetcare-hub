@@ -30,7 +30,9 @@ export const Contact = () => {
       return;
     }
 
-    setMapUrl(data.value);
+    if (data?.value) {
+      setMapUrl(data.value);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -163,15 +165,18 @@ export const Contact = () => {
                 </div>
               </div>
             </div>
-            <div className="w-full h-[400px] rounded-lg overflow-hidden">
-              {mapUrl && (
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: `<script type="text/javascript" charset="utf-8" async src="${mapUrl}"></script>`
-                  }}
+            {mapUrl && (
+              <div className="w-full h-[400px] rounded-lg overflow-hidden">
+                <iframe
+                  src={mapUrl}
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  allowFullScreen
+                  style={{ border: 0 }}
                 />
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
