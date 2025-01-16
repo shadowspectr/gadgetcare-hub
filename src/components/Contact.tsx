@@ -1,6 +1,6 @@
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,28 +12,6 @@ export const Contact = () => {
     phone: '',
     message: ''
   });
-  const [mapUrl, setMapUrl] = useState("");
-
-  useEffect(() => {
-    fetchMapUrl();
-  }, []);
-
-  const fetchMapUrl = async () => {
-    const { data, error } = await supabase
-      .from("settings")
-      .select("value")
-      .eq("key", "yandex_map_url")
-      .single();
-
-    if (error) {
-      console.error("Error fetching map URL:", error);
-      return;
-    }
-
-    if (data?.value) {
-      setMapUrl(data.value);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,16 +142,14 @@ export const Contact = () => {
                 </div>
               </div>
             </div>
-            {mapUrl && (
-              <div className="w-full h-[400px] rounded-lg overflow-hidden">
-                <script
-                  type="text/javascript"
-                  charSet="utf-8"
-                  async
-                  src={mapUrl}
-                />
-              </div>
-            )}
+            <div className="w-full h-[400px] rounded-lg overflow-hidden">
+              <script
+                type="text/javascript"
+                charSet="utf-8"
+                async
+                src="https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;width=100%25&amp;height=400&amp;lang=ru_RU&amp;scroll=true"
+              />
+            </div>
           </div>
         </div>
       </div>
