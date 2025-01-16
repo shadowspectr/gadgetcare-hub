@@ -1,6 +1,6 @@
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +12,29 @@ export const Contact = () => {
     phone: '',
     message: ''
   });
+
+  useEffect(() => {
+    // Create a script element
+    const script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.charset = 'utf-8';
+    script.async = true;
+    script.src = 'https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&width=100%25&height=400&lang=ru_RU&scroll=true';
+    
+    // Find the map container and append the script
+    const mapContainer = document.getElementById('yandex-map');
+    if (mapContainer) {
+      mapContainer.innerHTML = ''; // Clear any existing content
+      mapContainer.appendChild(script);
+    }
+
+    // Cleanup function
+    return () => {
+      if (mapContainer) {
+        mapContainer.innerHTML = '';
+      }
+    };
+  }, []); // Empty dependency array means this runs once on mount
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,14 +165,7 @@ export const Contact = () => {
                 </div>
               </div>
             </div>
-            <div className="w-full h-[400px] rounded-lg overflow-hidden">
-              <script
-                type="text/javascript"
-                charSet="utf-8"
-                async
-                src="https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;width=100%25&amp;height=400&amp;lang=ru_RU&amp;scroll=true"
-              />
-            </div>
+            <div id="yandex-map" className="w-full h-[400px] rounded-lg overflow-hidden" />
           </div>
         </div>
       </div>
