@@ -7,8 +7,14 @@ interface LiveSkladAuthResponse {
 interface LiveSkladOrder {
   id: string;
   number: string;
-  status: string;
-  name: string;
+  status: {
+    name: string;
+    color: string;
+  };
+  shop: {
+    name: string;
+    id: string;
+  };
 }
 
 const corsHeaders = {
@@ -22,8 +28,8 @@ serve(async (req) => {
   }
 
   try {
-    const { orderNumber } = await req.json()
-    console.log('Searching for order:', orderNumber)
+    const { orderNumber, shopId } = await req.json()
+    console.log('Searching for order:', orderNumber, 'in shop:', shopId)
 
     // Authenticate with LiveSklad
     const authResponse = await fetch('https://api.livesklad.com/auth', {
@@ -60,13 +66,33 @@ serve(async (req) => {
     const ordersData = await ordersResponse.json()
     console.log('LiveSklad API response:', ordersData)
 
-    // Handle both array and object responses
-    const orders = Array.isArray(ordersData) ? ordersData : [ordersData]
-    const order = orders.find((o: LiveSkladOrder) => o.number === orderNumber)
+    // Handle the nested data structure and filter by shop if specified
+    const orders = ordersData.data || [];
+    const order = orders.find((o: LiveSkladOrder) => {
+      const numberMatch = o.number === orderNumber;
+      return shopId ? (numberMatch && o.shop.id === shopId) : numberMatch;
+    });
+
+    if (!order) {
+      return new Response(
+        JSON.stringify({
+          status: 'Заказ не найден',
+          shops: orders.map((o: LiveSkladOrder) => ({
+            id: o.shop.id,
+            name: o.shop.name,
+          })),
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
 
     return new Response(
       JSON.stringify({
-        status: order ? order.name : 'Заказ не найден',
+        status: `Статус заказа: ${order.status.name}`,
+        statusColor: order.status.color,
+        shop: order.shop.name,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
