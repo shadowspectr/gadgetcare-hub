@@ -51,7 +51,6 @@ export const Contact = () => {
         description: "Мы свяжемся с вами в ближайшее время",
       });
 
-      // Reset form
       setFormData({
         name: '',
         phone: '',
@@ -167,13 +166,11 @@ export const Contact = () => {
             </div>
             {mapUrl && (
               <div className="w-full h-[400px] rounded-lg overflow-hidden">
-                <iframe
+                <script
+                  type="text/javascript"
+                  charSet="utf-8"
+                  async
                   src={mapUrl}
-                  width="100%"
-                  height="100%"
-                  frameBorder="0"
-                  allowFullScreen
-                  style={{ border: 0 }}
                 />
               </div>
             )}

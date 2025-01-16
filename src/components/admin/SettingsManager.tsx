@@ -25,24 +25,35 @@ export const SettingsManager = () => {
       return;
     }
 
-    setMapUrl(data.value);
+    if (data?.value) {
+      setMapUrl(data.value);
+    }
   };
 
   const handleSave = async () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase
+      const { error: upsertError } = await supabase
         .from("settings")
-        .update({ value: mapUrl })
-        .eq("key", "yandex_map_url");
+        .upsert(
+          { 
+            key: "yandex_map_url", 
+            value: mapUrl,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: "key" }
+        );
 
-      if (error) throw error;
+      if (upsertError) throw upsertError;
 
       toast({
         title: "Настройки сохранены",
         description: "URL карты успешно обновлен",
       });
+
+      // Refresh the map URL to ensure it's updated
+      await fetchMapUrl();
     } catch (error) {
       console.error("Error updating map URL:", error);
       toast({
