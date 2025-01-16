@@ -68,23 +68,51 @@ serve(async (req) => {
 
     // Handle the nested data structure and filter by shop if specified
     const orders = ordersData.data || [];
-    const order = orders.find((o: LiveSkladOrder) => {
-      const numberMatch = o.number === orderNumber;
-      return shopId ? (numberMatch && o.shop.id === shopId) : numberMatch;
-    });
+    
+    if (orders.length === 0) {
+      return new Response(
+        JSON.stringify({
+          status: 'Заказ не найден',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    if (!shopId) {
+      // If no shop is selected, return the list of shops where the order exists
+      const uniqueShops = Array.from(new Set(orders.map((o: LiveSkladOrder) => o.shop.id)))
+        .map(shopId => {
+          const order = orders.find((o: LiveSkladOrder) => o.shop.id === shopId)
+          return {
+            id: order.shop.id,
+            name: order.shop.name,
+          }
+        });
+
+      return new Response(
+        JSON.stringify({
+          status: 'Выберите сервисный центр, где был оставлен заказ',
+          shops: uniqueShops,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    // Find the specific order for the selected shop
+    const order = orders.find((o: LiveSkladOrder) => o.shop.id === shopId)
 
     if (!order) {
       return new Response(
         JSON.stringify({
-          status: 'Заказ не найден',
-          shops: orders.map((o: LiveSkladOrder) => ({
-            id: o.shop.id,
-            name: o.shop.name,
-          })),
+          status: 'Заказ не найден в выбранном сервисном центре',
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
+        }
       )
     }
 
@@ -96,7 +124,7 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
+      }
     )
   } catch (error) {
     console.error('Error in check-order-status:', error)
@@ -105,7 +133,7 @@ serve(async (req) => {
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
+      }
     )
   }
 })
