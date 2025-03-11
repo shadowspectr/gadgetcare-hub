@@ -33,21 +33,21 @@ export const Contact = () => {
           });
 
           // Добавляем метки на карту
-          const placemark1 = new window.ymaps.Placemark([48.0020302, 37.8037703], {
+          const placemark1 = new window.ymaps.Placemark([47.962262, 37.881488], {
             balloonContent: 'г. Донецк, ул. Октября 16А',
             hintContent: 'Доктор Гаджет'
           }, {
             preset: 'islands#blueRepairShopIcon'
           });
 
-          const placemark2 = new window.ymaps.Placemark([48.0059386, 37.8238506], {
+          const placemark2 = new window.ymaps.Placemark([47.989628, 37.901449], {
             balloonContent: 'г. Донецк, ул. Полоцкая 17 (Майский рынок)',
             hintContent: 'Доктор Гаджет'
           }, {
             preset: 'islands#blueRepairShopIcon'
           });
 
-          const placemark3 = new window.ymaps.Placemark([48.0149863, 37.8066252], {
+          const placemark3 = new window.ymaps.Placemark([48.003971, 37.806587], {
             balloonContent: 'г. Донецк, ул. Горького 150 (Скоро открытие)',
             hintContent: 'Доктор Гаджет'
           }, {
