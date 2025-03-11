@@ -126,7 +126,7 @@ export const Contact = () => {
               <div className="space-y-4">
                 <div className="flex items-center">
                   <Phone className="h-5 w-5 text-primary mr-3" />
-                  <span className="text-sm sm:text-base">+7 (999) 999-99-99</span>
+                  <span className="text-sm sm:text-base">+7 (949) 504-22-26</span>
                 </div>
                 <div className="flex items-center">
                   <Mail className="h-5 w-5 text-primary mr-3" />
@@ -134,11 +134,19 @@ export const Contact = () => {
                 </div>
                 <div className="flex items-center">
                   <MapPin className="h-5 w-5 text-primary mr-3" />
-                  <span className="text-sm sm:text-base">г. Москва, ул. Примерная, д. 1</span>
+                  <span className="text-sm sm:text-base">г. Донецк, ул. Октября 16А</span>
+                </div>
+                <div className="flex items-center">
+                  <MapPin className="h-5 w-5 text-primary mr-3" />
+                  <span className="text-sm sm:text-base">г. Донецк, ул. Полоцкая 17 (Майский рынок)</span>
+                </div>
+                <div className="flex items-center">
+                  <MapPin className="h-5 w-5 text-primary mr-3" />
+                  <span className="text-sm sm:text-base">г. Донецк, ул. Горького 150 (Скоро открытие)</span>
                 </div>
                 <div className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-3" />
-                  <span className="text-sm sm:text-base">Пн-Вс: 10:00 - 20:00</span>
+                  <span className="text-sm sm:text-base">Пн-Вс: 09:00 - 17:00</span>
                 </div>
               </div>
             </div>
@@ -147,8 +155,8 @@ export const Contact = () => {
                 type="text/javascript"
                 charSet="utf-8"
                 async
-                src="https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;width=100%25&amp;height=400&amp;lang=ru_RU&amp;scroll=true"
-              />
+                src="https://yandex.ru/maps/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;source=constructorStatic"><img src="https://api-maps.yandex.ru/services/constructor/1.0/static/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;width=500&amp;height=400&amp;lang=ru_RU" alt=""/>
+              </script>
             </div>
           </div>
         </div>
