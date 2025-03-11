@@ -17,39 +17,64 @@ export const Contact = () => {
 
   // Инициализация карты Яндекс
   useEffect(() => {
-    // Проверяем, загружен ли Яндекс API
+    // Проверяем, загружен ли Яндекс API и существует ли контейнер для карты
     if (window.ymaps && mapContainerRef.current) {
-      window.ymaps.ready(() => {
-        const map = new window.ymaps.Map(mapContainerRef.current, {
-          center: [48.0020302, 37.8037703],
-          zoom: 14,
-          controls: ['zoomControl', 'geolocationControl']
-        });
+      const initMap = () => {
+        // Проверяем, что карта еще не была инициализирована в этом контейнере
+        if (mapContainerRef.current?.innerHTML !== '') {
+          return;
+        }
+        
+        try {
+          const map = new window.ymaps.Map(mapContainerRef.current, {
+            center: [48.0020302, 37.8037703],
+            zoom: 14,
+            controls: ['zoomControl', 'geolocationControl']
+          });
 
-        // Добавляем метки на карту
-        const placemark1 = new window.ymaps.Placemark([48.0020302, 37.8037703], {
-          balloonContent: 'г. Донецк, ул. Октября 16А',
-          hintContent: 'Доктор Гаджет'
-        }, {
-          preset: 'islands#blueRepairShopIcon'
-        });
+          // Добавляем метки на карту
+          const placemark1 = new window.ymaps.Placemark([48.0020302, 37.8037703], {
+            balloonContent: 'г. Донецк, ул. Октября 16А',
+            hintContent: 'Доктор Гаджет'
+          }, {
+            preset: 'islands#blueRepairShopIcon'
+          });
 
-        const placemark2 = new window.ymaps.Placemark([48.0059386, 37.8238506], {
-          balloonContent: 'г. Донецк, ул. Полоцкая 17 (Майский рынок)',
-          hintContent: 'Доктор Гаджет'
-        }, {
-          preset: 'islands#blueRepairShopIcon'
-        });
+          const placemark2 = new window.ymaps.Placemark([48.0059386, 37.8238506], {
+            balloonContent: 'г. Донецк, ул. Полоцкая 17 (Майский рынок)',
+            hintContent: 'Доктор Гаджет'
+          }, {
+            preset: 'islands#blueRepairShopIcon'
+          });
 
-        const placemark3 = new window.ymaps.Placemark([48.0149863, 37.8066252], {
-          balloonContent: 'г. Донецк, ул. Горького 150 (Скоро открытие)',
-          hintContent: 'Доктор Гаджет'
-        }, {
-          preset: 'islands#blueRepairShopIcon'
-        });
+          const placemark3 = new window.ymaps.Placemark([48.0149863, 37.8066252], {
+            balloonContent: 'г. Донецк, ул. Горького 150 (Скоро открытие)',
+            hintContent: 'Доктор Гаджет'
+          }, {
+            preset: 'islands#blueRepairShopIcon'
+          });
 
-        map.geoObjects.add(placemark1).add(placemark2).add(placemark3);
-      });
+          map.geoObjects.add(placemark1).add(placemark2).add(placemark3);
+        } catch (error) {
+          console.error('Ошибка при инициализации карты:', error);
+        }
+      };
+
+      // Если API уже готов - инициализируем карту
+      if (window.ymaps.ready) {
+        window.ymaps.ready(initMap);
+      } else {
+        // Иначе ждем готовности API
+        const checkYmapsReady = setInterval(() => {
+          if (window.ymaps && window.ymaps.ready) {
+            window.ymaps.ready(initMap);
+            clearInterval(checkYmapsReady);
+          }
+        }, 300);
+        
+        // Очистка интервала при размонтировании компонента
+        return () => clearInterval(checkYmapsReady);
+      }
     }
   }, []);
 

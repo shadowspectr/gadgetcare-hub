@@ -3,28 +3,12 @@ import { Navbar } from "@/components/Navbar";
 import { Hero } from "@/components/Hero";
 import { Services } from "@/components/Services";
 import { Contact } from "@/components/Contact";
-import { useEffect } from "react";
+import { useYandexMaps } from "@/hooks/useYandexMaps";
 import { Toaster } from "@/components/ui/toaster";
 
 export const Index = () => {
-  // Правильная загрузка Яндекс карт
-  useEffect(() => {
-    // Асинхронная загрузка скрипта Яндекс.Карт
-    const loadYandexMaps = () => {
-      const script = document.createElement('script');
-      script.src = 'https://api-maps.yandex.ru/2.1/?apikey=ваш-api-ключ&lang=ru_RU';
-      script.async = true;
-      document.body.appendChild(script);
-    };
-    
-    // Загрузим карты после полной загрузки страницы
-    if (document.readyState === 'complete') {
-      loadYandexMaps();
-    } else {
-      window.addEventListener('load', loadYandexMaps);
-      return () => window.removeEventListener('load', loadYandexMaps);
-    }
-  }, []);
+  // Используем хук для загрузки Яндекс карт
+  useYandexMaps('2bfced98-a423-4e40-a34e-168c0237a61c');
 
   const currentYear = new Date().getFullYear();
 
