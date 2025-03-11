@@ -1,17 +1,57 @@
+
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Contact = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     message: ''
   });
+
+  // Инициализация карты Яндекс
+  useEffect(() => {
+    // Проверяем, загружен ли Яндекс API
+    if (window.ymaps && mapContainerRef.current) {
+      window.ymaps.ready(() => {
+        const map = new window.ymaps.Map(mapContainerRef.current, {
+          center: [48.0020302, 37.8037703],
+          zoom: 14,
+          controls: ['zoomControl', 'geolocationControl']
+        });
+
+        // Добавляем метки на карту
+        const placemark1 = new window.ymaps.Placemark([48.0020302, 37.8037703], {
+          balloonContent: 'г. Донецк, ул. Октября 16А',
+          hintContent: 'Доктор Гаджет'
+        }, {
+          preset: 'islands#blueRepairShopIcon'
+        });
+
+        const placemark2 = new window.ymaps.Placemark([48.0059386, 37.8238506], {
+          balloonContent: 'г. Донецк, ул. Полоцкая 17 (Майский рынок)',
+          hintContent: 'Доктор Гаджет'
+        }, {
+          preset: 'islands#blueRepairShopIcon'
+        });
+
+        const placemark3 = new window.ymaps.Placemark([48.0149863, 37.8066252], {
+          balloonContent: 'г. Донецк, ул. Горького 150 (Скоро открытие)',
+          hintContent: 'Доктор Гаджет'
+        }, {
+          preset: 'islands#blueRepairShopIcon'
+        });
+
+        map.geoObjects.add(placemark1).add(placemark2).add(placemark3);
+      });
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +131,7 @@ export const Contact = () => {
                   value={formData.phone}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-sm sm:text-base"
-                  placeholder="+7 (999) 999-99-99"
+                  placeholder="+7 (949) 999-99-99"
                   required
                   disabled={isLoading}
                 />
@@ -126,11 +166,11 @@ export const Contact = () => {
               <div className="space-y-4">
                 <div className="flex items-center">
                   <Phone className="h-5 w-5 text-primary mr-3" />
-                  <span className="text-sm sm:text-base">+7 (949) 504-22-26</span>
+                  <a href="tel:+79495042226" className="text-sm sm:text-base hover:text-primary">+7 (949) 504-22-26</a>
                 </div>
                 <div className="flex items-center">
                   <Mail className="h-5 w-5 text-primary mr-3" />
-                  <span className="text-sm sm:text-base">info@doctor-gadget.ru</span>
+                  <a href="mailto:info@doctor-gadget.ru" className="text-sm sm:text-base hover:text-primary">info@doctor-gadget.ru</a>
                 </div>
                 <div className="flex items-center">
                   <MapPin className="h-5 w-5 text-primary mr-3" />
@@ -150,13 +190,13 @@ export const Contact = () => {
                 </div>
               </div>
             </div>
-            <div className="w-full h-[400px] rounded-lg overflow-hidden">
-              <script
-                type="text/javascript"
-                charSet="utf-8"
-                async
-                src="https://yandex.ru/maps/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;source=constructorStatic"><img src="https://api-maps.yandex.ru/services/constructor/1.0/static/?um=constructor%3A600761c90f9f95a9ff4368197e3cc5913be3ca15efddb0e46cc58b0c2099aec0&amp;width=500&amp;height=400&amp;lang=ru_RU" alt=""/>
-              </script>
+            <div className="w-full h-[400px] rounded-lg overflow-hidden shadow-lg">
+              <div 
+                id="yandexMap" 
+                ref={mapContainerRef} 
+                className="w-full h-full"
+                aria-label="Карта с адресами сервисных центров"
+              ></div>
             </div>
           </div>
         </div>
@@ -164,3 +204,10 @@ export const Contact = () => {
     </section>
   );
 };
+
+// Объявление типов для глобальных переменных
+declare global {
+  interface Window {
+    ymaps: any;
+  }
+}
