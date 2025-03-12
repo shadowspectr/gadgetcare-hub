@@ -21,17 +21,20 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: "dist",
-    // Добавляем относительные пути для ассетов
     assetsDir: "assets",
+    // Генерируем более совместимый код
+    target: 'es2015',
+    // Используем привычную структуру файлов для хостинга
     rollupOptions: {
       output: {
-        // Генерируем предсказуемые имена файлов
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]'
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]'
       }
-    }
+    },
+    // Обеспечиваем совместимость для старых браузеров
+    polyfillModulePreload: true,
   },
-  // Убедимся, что все ассеты загружаются корректно
+  // Использование относительных путей для ассетов
   base: './'
 }));
