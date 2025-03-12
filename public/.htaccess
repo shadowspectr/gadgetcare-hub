@@ -8,3 +8,19 @@
   RewriteCond %{REQUEST_FILENAME} !-l
   RewriteRule . /index.html [L]
 </IfModule>
+
+# Добавляем правильные заголовки для JavaScript модулей
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+</IfModule>
+
+<FilesMatch "\.(js|jsx|ts|tsx)$">
+    Header set Content-Type "application/javascript"
+</FilesMatch>
+
+# Установка правильного MIME-типа для JavaScript модулей
+AddType application/javascript .js
+AddType application/javascript .mjs
+AddType application/javascript .jsx
+AddType application/javascript .ts
+AddType application/javascript .tsx

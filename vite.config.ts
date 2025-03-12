@@ -4,7 +4,6 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
@@ -20,8 +19,19 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Добавляем настройку для правильной обработки маршрутов при билде
   build: {
     outDir: "dist",
+    // Добавляем относительные пути для ассетов
+    assetsDir: "assets",
+    rollupOptions: {
+      output: {
+        // Генерируем предсказуемые имена файлов
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name].[ext]'
+      }
+    }
   },
+  // Убедимся, что все ассеты загружаются корректно
+  base: './'
 }));
