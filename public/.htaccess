@@ -67,3 +67,4 @@
   ExpiresByType application/javascript "access plus 1 month"
   ExpiresByType text/javascript "access plus 1 month"
 </IfModule>
+
