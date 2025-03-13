@@ -1,3 +1,4 @@
+
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
@@ -14,18 +15,17 @@ export const Contact = () => {
     phone: '',
     message: ''
   });
-  const { isLoaded } = useYandexMaps('2bfced98-a423-4e40-a34e-168c0237a61c');
+  const { isLoaded, error } = useYandexMaps('2bfced98-a423-4e40-a34e-168c0237a61c');
+  const [mapInitialized, setMapInitialized] = useState(false);
 
   // Инициализация карты Яндекс
   useEffect(() => {
     // Проверяем, загружен ли Яндекс API и существует ли контейнер для карты
-    if (isLoaded && window.ymaps && mapContainerRef.current) {
+    if (isLoaded && window.ymaps && mapContainerRef.current && !mapInitialized) {
       try {
-        // Проверяем, что карта еще не была инициализирована в этом контейнере
-        if (mapContainerRef.current?.innerHTML !== '') {
-          return;
-        }
+        console.log('Initializing Yandex Map...');
         
+        // Создаем карту
         const map = new window.ymaps.Map(mapContainerRef.current, {
           center: [48.0020302, 37.8037703],
           zoom: 14,
@@ -56,12 +56,25 @@ export const Contact = () => {
 
         map.geoObjects.add(placemark1).add(placemark2).add(placemark3);
         
+        setMapInitialized(true);
         console.log('Map initialized successfully');
       } catch (error) {
         console.error('Ошибка при инициализации карты:', error);
       }
     }
-  }, [isLoaded]);
+  }, [isLoaded, mapInitialized]);
+
+  // Показываем ошибку, если не удалось загрузить карту
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Ошибка загрузки карты",
+        description: "Не удалось загрузить Яндекс.Карты. Пожалуйста, попробуйте позже.",
+        variant: "destructive",
+      });
+      console.error('Ошибка загрузки Яндекс.Карт:', error);
+    }
+  }, [error, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,9 +217,20 @@ export const Contact = () => {
               <div 
                 id="yandexMap" 
                 ref={mapContainerRef} 
-                className="w-full h-full"
+                className="w-full h-full bg-gray-100"
                 aria-label="Карта с адресами сервисных центров"
-              ></div>
+              >
+                {!isLoaded && !error && (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500">
+                    Загрузка карты...
+                  </div>
+                )}
+                {error && (
+                  <div className="w-full h-full flex items-center justify-center text-red-500">
+                    Не удалось загрузить карту
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -214,10 +238,3 @@ export const Contact = () => {
     </section>
   );
 };
-
-// Объявление типов для глобальных переменных
-declare global {
-  interface Window {
-    ymaps: any;
-  }
-}
