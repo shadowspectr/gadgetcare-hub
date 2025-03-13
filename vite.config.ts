@@ -25,9 +25,9 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: "dist",
     assetsDir: "assets",
-    // Генерируем более совместимый код
+    // Generate more compatible code
     target: 'es2015',
-    // Используем привычную структуру файлов для хостинга
+    // Use conventional file structure for hosting
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name].[hash].js',
@@ -35,9 +35,9 @@ export default defineConfig(({ mode }) => ({
         assetFileNames: 'assets/[name].[hash].[ext]'
       }
     },
-    // Обеспечиваем совместимость для старых браузеров
+    // Ensure compatibility with older browsers
     polyfillModulePreload: true,
   },
-  // Использование относительных путей для ассетов
-  base: './'
+  // Using relative paths for assets (changed from './' to empty string for root-relative paths)
+  base: ''
 }));
