@@ -1,9 +1,9 @@
-
 import { Phone, Mail, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useYandexMaps } from "@/hooks/useYandexMaps";
 
 export const Contact = () => {
   const { toast } = useToast();
@@ -14,69 +14,54 @@ export const Contact = () => {
     phone: '',
     message: ''
   });
+  const { isLoaded } = useYandexMaps('2bfced98-a423-4e40-a34e-168c0237a61c');
 
   // Инициализация карты Яндекс
   useEffect(() => {
     // Проверяем, загружен ли Яндекс API и существует ли контейнер для карты
-    if (window.ymaps && mapContainerRef.current) {
-      const initMap = () => {
+    if (isLoaded && window.ymaps && mapContainerRef.current) {
+      try {
         // Проверяем, что карта еще не была инициализирована в этом контейнере
         if (mapContainerRef.current?.innerHTML !== '') {
           return;
         }
         
-        try {
-          const map = new window.ymaps.Map(mapContainerRef.current, {
-            center: [48.0020302, 37.8037703],
-            zoom: 14,
-            controls: ['zoomControl', 'geolocationControl']
-          });
+        const map = new window.ymaps.Map(mapContainerRef.current, {
+          center: [48.0020302, 37.8037703],
+          zoom: 14,
+          controls: ['zoomControl', 'geolocationControl']
+        });
 
-          // Добавляем метки на карту
-          const placemark1 = new window.ymaps.Placemark([47.962262, 37.881488], {
-            balloonContent: 'г. Донецк, ул. Октября 16А',
-            hintContent: 'Доктор Гаджет'
-          }, {
-            preset: 'islands#blueRepairShopIcon'
-          });
+        // Добавляем метки на карту
+        const placemark1 = new window.ymaps.Placemark([47.962262, 37.881488], {
+          balloonContent: 'г. Донецк, ул. Октября 16А',
+          hintContent: 'Доктор Гаджет'
+        }, {
+          preset: 'islands#blueRepairShopIcon'
+        });
 
-          const placemark2 = new window.ymaps.Placemark([47.989628, 37.901449], {
-            balloonContent: 'г. Донецк, ул. Полоцкая 17 (Майский рынок)',
-            hintContent: 'Доктор Гаджет'
-          }, {
-            preset: 'islands#blueRepairShopIcon'
-          });
+        const placemark2 = new window.ymaps.Placemark([47.989628, 37.901449], {
+          balloonContent: 'г. Донецк, ул. Полоцкая 17 (Майский рынок)',
+          hintContent: 'Доктор Гаджет'
+        }, {
+          preset: 'islands#blueRepairShopIcon'
+        });
 
-          const placemark3 = new window.ymaps.Placemark([48.003971, 37.806587], {
-            balloonContent: 'г. Донецк, ул. Горького 150 (Скоро открытие)',
-            hintContent: 'Доктор Гаджет'
-          }, {
-            preset: 'islands#blueRepairShopIcon'
-          });
+        const placemark3 = new window.ymaps.Placemark([48.003971, 37.806587], {
+          balloonContent: 'г. Донецк, ул. Горького 150 (Скоро открытие)',
+          hintContent: 'Доктор Гаджет'
+        }, {
+          preset: 'islands#blueRepairShopIcon'
+        });
 
-          map.geoObjects.add(placemark1).add(placemark2).add(placemark3);
-        } catch (error) {
-          console.error('Ошибка при инициализации карты:', error);
-        }
-      };
-
-      // Если API уже готов - инициализируем карту
-      if (window.ymaps.ready) {
-        window.ymaps.ready(initMap);
-      } else {
-        // Иначе ждем готовности API
-        const checkYmapsReady = setInterval(() => {
-          if (window.ymaps && window.ymaps.ready) {
-            window.ymaps.ready(initMap);
-            clearInterval(checkYmapsReady);
-          }
-        }, 300);
+        map.geoObjects.add(placemark1).add(placemark2).add(placemark3);
         
-        // Очистка интервала при размонтировании компонента
-        return () => clearInterval(checkYmapsReady);
+        console.log('Map initialized successfully');
+      } catch (error) {
+        console.error('Ошибка при инициализации карты:', error);
       }
     }
-  }, []);
+  }, [isLoaded]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

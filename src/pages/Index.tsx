@@ -3,13 +3,9 @@ import { Navbar } from "@/components/Navbar";
 import { Hero } from "@/components/Hero";
 import { Services } from "@/components/Services";
 import { Contact } from "@/components/Contact";
-import { useYandexMaps } from "@/hooks/useYandexMaps";
 import { Toaster } from "@/components/ui/toaster";
 
 export const Index = () => {
-  // Используем хук для загрузки Яндекс карт
-  useYandexMaps('2bfced98-a423-4e40-a34e-168c0237a61c');
-
   const currentYear = new Date().getFullYear();
 
   return (
