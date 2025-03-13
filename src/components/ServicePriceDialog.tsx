@@ -38,7 +38,7 @@ export const ServicePriceDialog = ({
               <TableHeader>
                 <TableRow className="bg-gray-50/50">
                   <TableHead className="text-gray-700 font-medium">Услуга</TableHead>
-                  <TableHead className="text-right text-gray-700 font-medium">Цена от, ₽</TableHead>
+                  <TableHead className="text-right text-gray-700 font-medium whitespace-nowrap">Цена от, ₽</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
