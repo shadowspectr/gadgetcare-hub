@@ -38,6 +38,6 @@ export default defineConfig(({ mode }) => ({
     // Ensure compatibility with older browsers
     polyfillModulePreload: true,
   },
-  // Using relative paths for assets (changed from './' to empty string for root-relative paths)
+  // Using empty string for base to ensure assets are loaded properly
   base: ''
 }));
