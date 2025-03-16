@@ -65,7 +65,7 @@ export const Hero = () => {
                 <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
                   <div className="text-3xl sm:text-4xl mb-4">🛠️</div>
                   <h3 className="font-semibold mb-2">И другое</h3>
-                  <p className="text-gray-600 text-sm sm:text-base">Любые устройства</p>
+                  <p className="text-gray-600 text-sm sm:text-base">Установка недоступного ПО на IOS</p>
                 </div>
               </div>
             </div>

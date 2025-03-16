@@ -31,9 +31,6 @@ export const Navbar = () => {
             <a href="#services" className="text-gray-700 hover:text-primary transition-colors">
               Услуги
             </a>
-            <a href="#about" className="text-gray-700 hover:text-primary transition-colors">
-              О нас
-            </a>
             <a href="#contact" className="text-gray-700 hover:text-primary transition-colors">
               Контакты
             </a>
@@ -66,9 +63,6 @@ export const Navbar = () => {
               </a>
               <a href="#services" className="text-gray-700 hover:text-primary transition-colors">
                 Услуги
-              </a>
-              <a href="#about" className="text-gray-700 hover:text-primary transition-colors">
-                О нас
               </a>
               <a href="#contact" className="text-gray-700 hover:text-primary transition-colors">
                 Контакты

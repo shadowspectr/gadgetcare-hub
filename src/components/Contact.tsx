@@ -27,13 +27,13 @@ export const Contact = () => {
         
         // Создаем карту
         const map = new window.ymaps.Map(mapContainerRef.current, {
-          center: [48.0020302, 37.8037703],
+          center: [47.962202, 37.881363],
           zoom: 14,
           controls: ['zoomControl', 'geolocationControl']
         });
 
         // Добавляем метки на карту
-        const placemark1 = new window.ymaps.Placemark([47.962262, 37.881488], {
+        const placemark1 = new window.ymaps.Placemark([47.962202, 37.881363], {
           balloonContent: 'г. Донецк, ул. Октября 16А',
           hintContent: 'Доктор Гаджет'
         }, {
