@@ -65,10 +65,9 @@ export const Hero = () => {
                 </div>
                 <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
                   <div className="flex">
-                    <BanknoteIcon className="h-8 sm:h-12 w-8 sm:w-12 text-primary mb-4" />
                     <ShieldCheck className="h-8 sm:h-12 w-8 sm:w-12 text-primary mb-4 ml-2" />
                   </div>
-                  <h3 className="font-semibold mb-2">iOS услуги</h3>
+                  <h3 className="font-semibold mb-2">Работа с ПО</h3>
                   <p className="text-gray-600 text-sm sm:text-base">Установка банковских приложений на iOS<br />Снятие блокировок</p>
                 </div>
               </div>
