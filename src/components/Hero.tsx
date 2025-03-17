@@ -1,4 +1,5 @@
-import { ArrowRight, Smartphone, Laptop, Tablet } from "lucide-react";
+
+import { ArrowRight, Smartphone, Laptop, Tablet, BanknoteIcon, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { OrderStatusDialog } from "./OrderStatusDialog";
@@ -63,9 +64,12 @@ export const Hero = () => {
                   <p className="text-gray-600 text-sm sm:text-base">Гарантия качества</p>
                 </div>
                 <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
-                  <div className="text-3xl sm:text-4xl mb-4">🛠️</div>
-                  <h3 className="font-semibold mb-2">И другое</h3>
-                  <p className="text-gray-600 text-sm sm:text-base">Установка недоступного ПО на IOS</p>
+                  <div className="flex">
+                    <BanknoteIcon className="h-8 sm:h-12 w-8 sm:w-12 text-primary mb-4" />
+                    <ShieldCheck className="h-8 sm:h-12 w-8 sm:w-12 text-primary mb-4 ml-2" />
+                  </div>
+                  <h3 className="font-semibold mb-2">iOS услуги</h3>
+                  <p className="text-gray-600 text-sm sm:text-base">Установка банковских приложений на iOS<br />Снятие блокировок</p>
                 </div>
               </div>
             </div>
