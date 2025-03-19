@@ -1,10 +1,11 @@
-
-import { Phone, Mail, MapPin, Clock } from "lucide-react";
+import { Phone, Mail, MapPin, Clock, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useYandexMaps } from "@/hooks/useYandexMaps";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export const Contact = () => {
   const { toast } = useToast();
@@ -15,24 +16,24 @@ export const Contact = () => {
     phone: '',
     message: ''
   });
+  const [deviceImage, setDeviceImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const { isLoaded, error } = useYandexMaps('2bfced98-a423-4e40-a34e-168c0237a61c');
   const [mapInitialized, setMapInitialized] = useState(false);
 
-  // Инициализация карты Яндекс
   useEffect(() => {
-    // Проверяем, загружен ли Яндекс API и существует ли контейнер для карты
     if (isLoaded && window.ymaps && mapContainerRef.current && !mapInitialized) {
       try {
         console.log('Initializing Yandex Map...');
         
-        // Создаем карту
         const map = new window.ymaps.Map(mapContainerRef.current, {
           center: [47.962202, 37.881363],
           zoom: 14,
           controls: ['zoomControl', 'geolocationControl']
         });
 
-        // Добавляем метки на карту
         const placemark1 = new window.ymaps.Placemark([47.962202, 37.881363], {
           balloonContent: 'г. Донецк, ул. Октября 16А',
           hintContent: 'Доктор Гаджет'
@@ -64,7 +65,6 @@ export const Contact = () => {
     }
   }, [isLoaded, mapInitialized]);
 
-  // Показываем ошибку, если не удалось загрузить карту
   useEffect(() => {
     if (error) {
       toast({
@@ -76,13 +76,76 @@ export const Contact = () => {
     }
   }, [error, toast]);
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Ошибка",
+          description: "Размер изображения не должен превышать 5МБ",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!file.type.match('image/*')) {
+        toast({
+          title: "Ошибка",
+          description: "Пожалуйста, загрузите изображение",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setDeviceImage(file);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const clearImageSelection = () => {
+    setDeviceImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     try {
+      let imageUrl = null;
+      
+      if (deviceImage) {
+        const fileName = `device_images/${Date.now()}_${deviceImage.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('contact_uploads')
+          .upload(fileName, deviceImage, {
+            cacheControl: '3600',
+            upsert: false
+          });
+          
+        if (uploadError) throw uploadError;
+        
+        const { data: urlData } = supabase.storage
+          .from('contact_uploads')
+          .getPublicUrl(fileName);
+          
+        imageUrl = urlData.publicUrl;
+      }
+      
       const { error } = await supabase.functions.invoke('send-telegram', {
-        body: formData
+        body: {
+          ...formData,
+          imageUrl
+        }
       });
 
       if (error) throw error;
@@ -97,6 +160,8 @@ export const Contact = () => {
         phone: '',
         message: ''
       });
+      clearImageSelection();
+      
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -174,6 +239,48 @@ export const Contact = () => {
                   disabled={isLoading}
                 />
               </div>
+              
+              <div>
+                <Label className="block text-sm font-medium text-gray-700 mb-1">
+                  Фото устройства (необязательно)
+                </Label>
+                <div className="mt-1 flex items-center gap-4">
+                  <Input
+                    type="file"
+                    id="device-image"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="w-full text-sm sm:text-base"
+                    disabled={isLoading}
+                  />
+                  {imagePreview && (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={clearImageSelection}
+                      disabled={isLoading}
+                    >
+                      Удалить
+                    </Button>
+                  )}
+                </div>
+                {imagePreview && (
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500 mb-2">Предпросмотр:</p>
+                    <div className="relative w-40 h-40 border rounded-md overflow-hidden">
+                      <img 
+                        src={imagePreview} 
+                        alt="Предпросмотр фото устройства" 
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">Максимальный размер файла: 5МБ</p>
+              </div>
+              
               <Button 
                 type="submit" 
                 className="w-full bg-primary hover:bg-primary/90"

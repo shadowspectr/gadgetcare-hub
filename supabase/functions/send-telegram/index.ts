@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -9,6 +10,7 @@ interface RequestBody {
   name: string;
   phone: string;
   message: string;
+  imageUrl?: string | null;
 }
 
 serve(async (req) => {
@@ -25,17 +27,20 @@ serve(async (req) => {
       throw new Error('Missing Telegram configuration')
     }
 
-    const { name, phone, message } = await req.json() as RequestBody
+    const { name, phone, message, imageUrl } = await req.json() as RequestBody
 
+    // Format text message
     const telegramMessage = `
 🔔 Новая заявка!
 
 👤 Имя: ${name}
 📱 Телефон: ${phone}
 💬 Сообщение: ${message}
+${imageUrl ? '📷 Фото устройства: прикреплено' : ''}
     `.trim()
 
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    // Send text message
+    const textResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,10 +52,27 @@ serve(async (req) => {
       }),
     })
 
-    const result = await response.json()
-
-    if (!response.ok) {
+    if (!textResponse.ok) {
       throw new Error('Failed to send Telegram message')
+    }
+
+    // If image URL is provided, send it as a photo
+    if (imageUrl) {
+      const photoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHANNEL_ID,
+          photo: imageUrl,
+          caption: `Фото устройства от ${name}`,
+        }),
+      })
+
+      if (!photoResponse.ok) {
+        console.error('Failed to send photo', await photoResponse.text())
+      }
     }
 
     return new Response(
