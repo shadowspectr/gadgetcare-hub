@@ -40,7 +40,66 @@ serve(async (req) => {
 ${imageBase64 ? '📷 Фото устройства: прикреплено' : ''}
     `.trim()
 
+    // First attempt to send the image if it exists
+    if (imageBase64 && imageBase64.includes('base64')) {
+      console.log('Processing image attachment')
+      try {
+        // Create form data for file upload
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+        formData.append('caption', `🔔 Новая заявка от ${name}
+
+👤 Имя: ${name}
+📱 Телефон: ${phone}
+💬 Сообщение: ${message}`);
+        
+        // Convert base64 to blob
+        const base64Data = imageBase64.split('base64,')[1];
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        // Get content type from base64 string
+        const contentType = imageBase64.split(';')[0].split(':')[1] || 'image/jpeg';
+        
+        // Create blob and append to form
+        const blob = new Blob([bytes], { type: contentType });
+        formData.append('photo', blob, `photo_${Date.now()}.jpg`);
+        
+        // Send photo with caption to Telegram
+        const photoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const photoResult = await photoResponse.json();
+        
+        if (!photoResponse.ok) {
+          console.error('Failed to send photo to Telegram:', photoResult);
+          // If photo failed, fallback to sending just the text message
+          throw new Error('Failed to send photo: ' + JSON.stringify(photoResult));
+        }
+        
+        console.log('Photo sent successfully');
+        // If photo with caption was sent successfully, we don't need to send text message
+        return new Response(
+          JSON.stringify({ success: true, photoSent: true }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          },
+        );
+      } catch (photoError) {
+        console.error('Error sending photo, falling back to text message:', photoError);
+        // Continue to send text message as fallback
+      }
+    }
+
+    // If we're here, either there was no image or sending the image failed
     // Send text message
+    console.log('Sending text message to Telegram');
     const textResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: {
@@ -49,46 +108,17 @@ ${imageBase64 ? '📷 Фото устройства: прикреплено' : '
       body: JSON.stringify({
         chat_id: TELEGRAM_CHANNEL_ID,
         text: telegramMessage,
-        parse_mode: 'HTML',
       }),
-    })
+    });
+
+    const textResult = await textResponse.json();
 
     if (!textResponse.ok) {
-      throw new Error('Failed to send Telegram message')
+      console.error('Failed to send text message to Telegram:', textResult);
+      throw new Error('Failed to send message: ' + JSON.stringify(textResult));
     }
 
-    // If image is provided, send it directly to Telegram
-    if (imageBase64) {
-      // Create form data for file upload
-      const formData = new FormData();
-      formData.append('chat_id', TELEGRAM_CHANNEL_ID);
-      formData.append('caption', `Фото устройства от ${name}`);
-      
-      // Convert base64 to blob
-      const base64Data = imageBase64.split('base64,')[1];
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      // Get content type from base64 string
-      const contentType = imageBase64.split(';')[0].split(':')[1];
-      
-      // Create blob and append to form
-      const blob = new Blob([bytes], { type: contentType });
-      formData.append('photo', blob, `image_${Date.now()}.jpg`);
-      
-      // Send photo directly to Telegram
-      const photoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!photoResponse.ok) {
-        console.error('Failed to send photo', await photoResponse.text());
-      }
-    }
+    console.log('Text message sent successfully');
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -98,7 +128,7 @@ ${imageBase64 ? '📷 Фото устройства: прикреплено' : '
       },
     )
   } catch (error) {
-    console.error('Error:', error.message)
+    console.error('Error in send-telegram function:', error.message)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
