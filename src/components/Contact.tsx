@@ -116,6 +116,36 @@ export const Contact = () => {
     }
   };
 
+  const ensureBucketExists = async () => {
+    try {
+      const { data: buckets, error: bucketsError } = await supabase
+        .storage
+        .listBuckets();
+        
+      if (bucketsError) throw bucketsError;
+      
+      const bucketExists = buckets.some(bucket => bucket.name === 'contact_uploads');
+      
+      if (!bucketExists) {
+        console.log('Creating contact_uploads bucket...');
+        const { error: createError } = await supabase
+          .storage
+          .createBucket('contact_uploads', {
+            public: true,
+            fileSizeLimit: 5 * 1024 * 1024,
+          });
+          
+        if (createError) throw createError;
+        console.log('Bucket created successfully');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error ensuring bucket exists:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -124,6 +154,11 @@ export const Contact = () => {
       let imageUrl = null;
       
       if (deviceImage) {
+        const bucketReady = await ensureBucketExists();
+        if (!bucketReady) {
+          throw new Error('Не удалось подготовить хранилище для загрузки изображения');
+        }
+        
         const fileName = `device_images/${Date.now()}_${deviceImage.name}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('contact_uploads')
