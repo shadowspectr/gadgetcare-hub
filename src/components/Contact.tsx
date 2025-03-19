@@ -123,8 +123,7 @@ export const Contact = () => {
     try {
       const requestData = {
         ...formData,
-        imageBase64: imagePreview,
-        imageName: deviceImage?.name || null
+        imageBase64: imagePreview
       };
       
       const { error } = await supabase.functions.invoke('send-telegram', {

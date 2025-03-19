@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,64 +23,13 @@ serve(async (req) => {
   try {
     const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')
     const TELEGRAM_CHANNEL_ID = Deno.env.get('TELEGRAM_CHANNEL_ID')
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHANNEL_ID) {
       throw new Error('Missing Telegram configuration')
     }
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Missing Supabase configuration')
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    const { name, phone, message, imageBase64, imageName } = await req.json() as RequestBody
+    const { name, phone, message, imageBase64 } = await req.json() as RequestBody
     
-    let imageUrl = null;
-    
-    // Handle image upload if provided
-    if (imageBase64 && imageName) {
-      // Ensure bucket exists
-      const { data: buckets } = await supabase.storage.listBuckets()
-      
-      if (!buckets?.some(bucket => bucket.name === 'contact_uploads')) {
-        await supabase.storage.createBucket('contact_uploads', {
-          public: true,
-          fileSizeLimit: 5 * 1024 * 1024,
-        })
-      }
-      
-      // Convert base64 to Uint8Array
-      const base64Data = imageBase64.split('base64,')[1]
-      const binaryString = atob(base64Data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-      
-      // Upload file
-      const fileName = `device_images/${Date.now()}_${imageName}`
-      const { data: fileData, error: uploadError } = await supabase.storage
-        .from('contact_uploads')
-        .upload(fileName, bytes, {
-          contentType: imageBase64.split(';')[0].split(':')[1],
-          upsert: false
-        })
-        
-      if (uploadError) {
-        console.error('Upload error:', uploadError)
-        throw uploadError
-      }
-      
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('contact_uploads')
-        .getPublicUrl(fileName)
-        
-      imageUrl = urlData.publicUrl
-    }
-
     // Format text message
     const telegramMessage = `
 🔔 Новая заявка!
@@ -89,7 +37,7 @@ serve(async (req) => {
 👤 Имя: ${name}
 📱 Телефон: ${phone}
 💬 Сообщение: ${message}
-${imageUrl ? '📷 Фото устройства: прикреплено' : ''}
+${imageBase64 ? '📷 Фото устройства: прикреплено' : ''}
     `.trim()
 
     // Send text message
@@ -109,22 +57,36 @@ ${imageUrl ? '📷 Фото устройства: прикреплено' : ''}
       throw new Error('Failed to send Telegram message')
     }
 
-    // If image URL is provided, send it as a photo
-    if (imageUrl) {
+    // If image is provided, send it directly to Telegram
+    if (imageBase64) {
+      // Create form data for file upload
+      const formData = new FormData();
+      formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+      formData.append('caption', `Фото устройства от ${name}`);
+      
+      // Convert base64 to blob
+      const base64Data = imageBase64.split('base64,')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Get content type from base64 string
+      const contentType = imageBase64.split(';')[0].split(':')[1];
+      
+      // Create blob and append to form
+      const blob = new Blob([bytes], { type: contentType });
+      formData.append('photo', blob, `image_${Date.now()}.jpg`);
+      
+      // Send photo directly to Telegram
       const photoResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_CHANNEL_ID,
-          photo: imageUrl,
-          caption: `Фото устройства от ${name}`,
-        }),
-      })
+        body: formData,
+      });
 
       if (!photoResponse.ok) {
-        console.error('Failed to send photo', await photoResponse.text())
+        console.error('Failed to send photo', await photoResponse.text());
       }
     }
 
