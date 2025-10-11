@@ -34,12 +34,14 @@ type Service = {
   id: string;
   title: string;
   description: string;
-  icon: keyof typeof iconComponents;
+  icon: string;
+  created_at?: string;
 };
 
 export const ServicesManager = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [isPriceEditorOpen, setIsPriceEditorOpen] = useState(false);
 
@@ -54,7 +56,7 @@ export const ServicesManager = () => {
       return;
     }
 
-    setServices(data);
+    setServices(data || []);
   };
 
   useEffect(() => {
@@ -96,8 +98,40 @@ export const ServicesManager = () => {
     setIsPriceEditorOpen(true);
   };
 
+  const handleAdd = () => {
+    setIsAddDialogOpen(true);
+  };
+
+  const handleAddService = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const newService = {
+      title: formData.get("title") as string,
+      description: formData.get("description") as string,
+      icon: formData.get("icon") as keyof typeof iconComponents,
+    };
+
+    const { error } = await supabase
+      .from("services")
+      .insert(newService);
+
+    if (error) {
+      console.error("Error adding service:", error);
+      return;
+    }
+
+    setIsAddDialogOpen(false);
+    fetchServices();
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button onClick={handleAdd}>
+          Добавить услугу
+        </Button>
+      </div>
       <Table>
         <TableHeader>
           <TableRow>
@@ -109,7 +143,7 @@ export const ServicesManager = () => {
         </TableHeader>
         <TableBody>
           {services.map((service) => {
-            const Icon = iconComponents[service.icon];
+            const Icon = iconComponents[service.icon as keyof typeof iconComponents] || Smartphone;
             return (
               <TableRow key={service.id}>
                 <TableCell>
@@ -188,6 +222,56 @@ export const ServicesManager = () => {
             </div>
             <DialogFooter>
               <Button type="submit">Сохранить</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Добавить новую услугу</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddService} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="add-title" className="text-sm font-medium">
+                Название
+              </label>
+              <Input
+                id="add-title"
+                name="title"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="add-description" className="text-sm font-medium">
+                Описание
+              </label>
+              <Textarea
+                id="add-description"
+                name="description"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="add-icon" className="text-sm font-medium">
+                Иконка
+              </label>
+              <select
+                id="add-icon"
+                name="icon"
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                required
+              >
+                {Object.keys(iconComponents).map((icon) => (
+                  <option key={icon} value={icon}>
+                    {icon}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Добавить</Button>
             </DialogFooter>
           </form>
         </DialogContent>

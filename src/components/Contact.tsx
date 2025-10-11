@@ -11,7 +11,7 @@ export const Contact = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>("");
-  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const [mapUrl, setMapUrl] = useState<string>("");
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -20,62 +20,22 @@ export const Contact = () => {
   const [deviceImage, setDeviceImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const { isLoaded, error } = useYandexMaps('2bfced98-a423-4e40-a34e-168c0237a61c');
-  const [mapInitialized, setMapInitialized] = useState(false);
 
   useEffect(() => {
-    if (isLoaded && window.ymaps && mapContainerRef.current && !mapInitialized) {
-      try {
-        console.log('Initializing Yandex Map...');
-        
-        const map = new window.ymaps.Map(mapContainerRef.current, {
-          center: [47.962202, 37.881363],
-          zoom: 14,
-          controls: ['zoomControl', 'geolocationControl']
-        });
+    const fetchMapUrl = async () => {
+      const { data } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "yandex_map_url")
+        .maybeSingle();
 
-        const placemark1 = new window.ymaps.Placemark([47.962202, 37.881363], {
-          balloonContent: 'г. Донецк, ул. Октября 16А',
-          hintContent: 'Доктор Гаджет'
-        }, {
-          preset: 'islands#blueRepairShopIcon'
-        });
-
-        const placemark2 = new window.ymaps.Placemark([47.989628, 37.901449], {
-          balloonContent: 'г. Донецк, ул. Полоцкая 17 (Майский рынок)',
-          hintContent: 'Доктор Гаджет'
-        }, {
-          preset: 'islands#blueRepairShopIcon'
-        });
-
-        const placemark3 = new window.ymaps.Placemark([48.003971, 37.806587], {
-          balloonContent: 'г. Донецк, ул. Горького 150 (Скоро открытие)',
-          hintContent: 'Доктор Гаджет'
-        }, {
-          preset: 'islands#blueRepairShopIcon'
-        });
-
-        map.geoObjects.add(placemark1).add(placemark2).add(placemark3);
-        
-        setMapInitialized(true);
-        console.log('Map initialized successfully');
-      } catch (error) {
-        console.error('Ошибка при инициализации карты:', error);
+      if (data?.value) {
+        setMapUrl(data.value);
       }
-    }
-  }, [isLoaded, mapInitialized]);
+    };
 
-  useEffect(() => {
-    if (error) {
-      toast({
-        title: "Ошибка загрузки карты",
-        description: "Не удалось загрузить Яндекс.Карты. Пожалуйста, попробуйте позже.",
-        variant: "destructive",
-      });
-      console.error('Ошибка загрузки Яндекс.Карт:', error);
-    }
-  }, [error, toast]);
+    fetchMapUrl();
+  }, []);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -316,23 +276,21 @@ export const Contact = () => {
               </div>
             </div>
             <div className="w-full h-[400px] rounded-lg overflow-hidden shadow-lg">
-              <div 
-                id="yandexMap" 
-                ref={mapContainerRef} 
-                className="w-full h-full bg-gray-100"
-                aria-label="Карта с адресами сервисных центров"
-              >
-                {!isLoaded && !error && (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500">
-                    Загрузка карты...
-                  </div>
-                )}
-                {error && (
-                  <div className="w-full h-full flex items-center justify-center text-red-500">
-                    Не удалось загрузить карту
-                  </div>
-                )}
-              </div>
+              {mapUrl ? (
+                <iframe
+                  src={mapUrl}
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  allowFullScreen
+                  style={{ position: 'relative' }}
+                  title="Яндекс Карта"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+                  Карта не настроена
+                </div>
+              )}
             </div>
           </div>
         </div>

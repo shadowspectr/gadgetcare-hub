@@ -17,14 +17,18 @@ type Service = {
   id: string;
   title: string;
   description: string;
-  icon: keyof typeof iconComponents;
+  icon: string;
+  created_at?: string;
 };
 
 type ServicePrice = {
   id: string;
-  name: string;
-  price: number;
-  service: string;
+  service_id: string;
+  device_type: string;
+  repair_type: string;
+  price: string;
+  duration: string | null;
+  created_at?: string;
 };
 
 export const Services = () => {
@@ -43,7 +47,7 @@ export const Services = () => {
       return;
     }
 
-    setServices(data);
+    setServices(data || []);
   };
 
   const fetchPrices = async (serviceId: string) => {
@@ -58,13 +62,7 @@ export const Services = () => {
       return;
     }
 
-    // Transform the data to include the service property
-    const transformedData = data.map(price => ({
-      ...price,
-      service: price.name
-    }));
-
-    setPrices((prev) => ({ ...prev, [serviceId]: transformedData }));
+    setPrices((prev) => ({ ...prev, [serviceId]: data || [] }));
   };
 
   useEffect(() => {
@@ -94,7 +92,7 @@ export const Services = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {services.map((service, index) => {
-            const Icon = iconComponents[service.icon];
+            const Icon = iconComponents[service.icon as keyof typeof iconComponents] || Smartphone;
             return (
               <div
                 key={service.id}

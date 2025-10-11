@@ -20,8 +20,12 @@ import { Plus, Trash2 } from "lucide-react";
 
 type ServicePrice = {
   id: string;
-  name: string;
-  price: number;
+  service_id: string;
+  device_type: string;
+  repair_type: string;
+  price: string;
+  duration: string | null;
+  created_at?: string;
 };
 
 interface ServicePriceEditorProps {
@@ -38,7 +42,12 @@ export const ServicePriceEditor = ({
   serviceTitle,
 }: ServicePriceEditorProps) => {
   const [prices, setPrices] = useState<ServicePrice[]>([]);
-  const [newPrice, setNewPrice] = useState({ name: "", price: "" });
+  const [newPrice, setNewPrice] = useState({ 
+    device_type: "", 
+    repair_type: "", 
+    price: "",
+    duration: "" 
+  });
 
   const fetchPrices = async () => {
     const { data, error } = await supabase
@@ -52,7 +61,7 @@ export const ServicePriceEditor = ({
       return;
     }
 
-    setPrices(data);
+    setPrices(data || []);
   };
 
   useEffect(() => {
@@ -62,12 +71,14 @@ export const ServicePriceEditor = ({
   }, [isOpen, serviceId]);
 
   const handleAddPrice = async () => {
-    if (!newPrice.name || !newPrice.price) return;
+    if (!newPrice.device_type || !newPrice.repair_type || !newPrice.price) return;
 
     const { error } = await supabase.from("service_prices").insert({
       service_id: serviceId,
-      name: newPrice.name,
-      price: parseInt(newPrice.price),
+      device_type: newPrice.device_type,
+      repair_type: newPrice.repair_type,
+      price: newPrice.price,
+      duration: newPrice.duration || null,
     });
 
     if (error) {
@@ -75,7 +86,7 @@ export const ServicePriceEditor = ({
       return;
     }
 
-    setNewPrice({ name: "", price: "" });
+    setNewPrice({ device_type: "", repair_type: "", price: "", duration: "" });
     fetchPrices();
   };
 
@@ -95,25 +106,38 @@ export const ServicePriceEditor = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Цены на услугу: {serviceTitle}</DialogTitle>
         </DialogHeader>
         <div className="space-y-6">
-          <div className="flex gap-4">
+          <div className="grid grid-cols-5 gap-2">
             <Input
-              placeholder="Название услуги"
-              value={newPrice.name}
+              placeholder="Устройство"
+              value={newPrice.device_type}
               onChange={(e) =>
-                setNewPrice({ ...newPrice, name: e.target.value })
+                setNewPrice({ ...newPrice, device_type: e.target.value })
               }
             />
             <Input
-              type="number"
+              placeholder="Тип ремонта"
+              value={newPrice.repair_type}
+              onChange={(e) =>
+                setNewPrice({ ...newPrice, repair_type: e.target.value })
+              }
+            />
+            <Input
               placeholder="Цена"
               value={newPrice.price}
               onChange={(e) =>
                 setNewPrice({ ...newPrice, price: e.target.value })
+              }
+            />
+            <Input
+              placeholder="Срок"
+              value={newPrice.duration}
+              onChange={(e) =>
+                setNewPrice({ ...newPrice, duration: e.target.value })
               }
             />
             <Button onClick={handleAddPrice}>
@@ -124,18 +148,20 @@ export const ServicePriceEditor = ({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Услуга</TableHead>
-                <TableHead className="text-right">Цена от, ₽</TableHead>
+                <TableHead>Устройство</TableHead>
+                <TableHead>Тип ремонта</TableHead>
+                <TableHead>Цена от, ₽</TableHead>
+                <TableHead>Срок</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {prices.map((price) => (
                 <TableRow key={price.id}>
-                  <TableCell>{price.name}</TableCell>
-                  <TableCell className="text-right">
-                    {price.price.toLocaleString("ru-RU")}
-                  </TableCell>
+                  <TableCell>{price.device_type}</TableCell>
+                  <TableCell>{price.repair_type}</TableCell>
+                  <TableCell>{price.price}</TableCell>
+                  <TableCell>{price.duration || '—'}</TableCell>
                   <TableCell>
                     <Button
                       variant="ghost"

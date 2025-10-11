@@ -18,7 +18,7 @@ export const SettingsManager = () => {
       .from("settings")
       .select("value")
       .eq("key", "yandex_map_url")
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error fetching map URL:", error);
