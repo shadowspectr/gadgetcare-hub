@@ -14,67 +14,58 @@ export type Database = {
   }
   public: {
     Tables: {
-      service_prices: {
+      service_categories: {
         Row: {
           created_at: string
-          device_type: string
-          duration: string | null
+          icon: string | null
           id: string
-          price: string
-          repair_type: string
-          service_id: string
+          name: string
         }
         Insert: {
           created_at?: string
-          device_type: string
-          duration?: string | null
+          icon?: string | null
           id?: string
-          price: string
-          repair_type: string
-          service_id: string
+          name: string
         }
         Update: {
           created_at?: string
-          device_type?: string
-          duration?: string | null
+          icon?: string | null
           id?: string
-          price?: string
-          repair_type?: string
-          service_id?: string
+          name?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "service_prices_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       services: {
         Row: {
+          category_id: string
           created_at: string
-          description: string
-          icon: string
           id: string
-          title: string
+          name: string
+          price: string
         }
         Insert: {
+          category_id: string
           created_at?: string
-          description: string
-          icon: string
           id?: string
-          title: string
+          name: string
+          price: string
         }
         Update: {
+          category_id?: string
           created_at?: string
-          description?: string
-          icon?: string
           id?: string
-          title?: string
+          name?: string
+          price?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "service_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       settings: {
         Row: {
