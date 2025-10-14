@@ -1,8 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { ServicePriceDialog } from "./ServicePriceDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Smartphone, Laptop, Tablet, Battery, Wifi, HardDrive } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const iconComponents = {
   smartphone: Smartphone,
@@ -13,76 +18,68 @@ const iconComponents = {
   "hard-drive": HardDrive,
 };
 
-type Service = {
+type ServiceCategory = {
   id: string;
-  title: string;
-  description: string;
-  icon: string;
+  name: string;
+  icon: string | null;
   created_at?: string;
 };
 
-type ServicePrice = {
+type Service = {
   id: string;
-  service_id: string;
-  device_type: string;
-  repair_type: string;
+  category_id: string;
+  name: string;
   price: string;
-  duration: string | null;
   created_at?: string;
 };
 
 export const Services = () => {
-  const [selectedService, setSelectedService] = useState<number | null>(null);
-  const [services, setServices] = useState<Service[]>([]);
-  const [prices, setPrices] = useState<{ [key: string]: ServicePrice[] }>({});
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [services, setServices] = useState<{ [key: string]: Service[] }>({});
 
-  const fetchServices = async () => {
-    const { data, error } = await supabase
+  const fetchCategoriesAndServices = async () => {
+    const { data: categoriesData, error: categoriesError } = await supabase
+      .from("service_categories")
+      .select("*")
+      .order("created_at");
+
+    if (categoriesError) {
+      console.error("Error fetching categories:", categoriesError);
+      return;
+    }
+
+    setCategories(categoriesData || []);
+
+    const { data: servicesData, error: servicesError } = await supabase
       .from("services")
       .select("*")
       .order("created_at");
 
-    if (error) {
-      console.error("Error fetching services:", error);
+    if (servicesError) {
+      console.error("Error fetching services:", servicesError);
       return;
     }
 
-    setServices(data || []);
-  };
+    const groupedServices = (servicesData || []).reduce((acc, service) => {
+      if (!acc[service.category_id]) {
+        acc[service.category_id] = [];
+      }
+      acc[service.category_id].push(service);
+      return acc;
+    }, {} as { [key: string]: Service[] });
 
-  const fetchPrices = async (serviceId: string) => {
-    const { data, error } = await supabase
-      .from("service_prices")
-      .select("*")
-      .eq("service_id", serviceId)
-      .order("created_at");
-
-    if (error) {
-      console.error("Error fetching prices:", error);
-      return;
-    }
-
-    setPrices((prev) => ({ ...prev, [serviceId]: data || [] }));
+    setServices(groupedServices);
   };
 
   useEffect(() => {
-    fetchServices();
+    fetchCategoriesAndServices();
   }, []);
 
-  useEffect(() => {
-    if (selectedService !== null) {
-      const service = services[selectedService];
-      if (service && !prices[service.id]) {
-        fetchPrices(service.id);
-      }
-    }
-  }, [selectedService, services, prices]);
-
   return (
-    <section id="services" className="py-12 sm:py-16 bg-white">
+    <section id="services" className="py-12 sm:py-16 bg-gradient-to-b from-white to-gray-50">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-8 sm:mb-12">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+        <div className="text-center mb-8 sm:mb-12 animate-fade-in">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-primary">
             Наши услуги
           </h2>
           <p className="text-gray-600 max-w-2xl mx-auto text-sm sm:text-base">
@@ -90,41 +87,51 @@ export const Services = () => {
             цифровой техники
           </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-          {services.map((service, index) => {
-            const Icon = iconComponents[service.icon as keyof typeof iconComponents] || Smartphone;
-            return (
-              <div
-                key={service.id}
-                className="p-4 sm:p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow border border-gray-100"
-              >
-                <Icon className="h-10 sm:h-12 w-10 sm:w-12 text-primary mb-4" />
-                <h3 className="text-lg sm:text-xl font-semibold mb-2">
-                  {service.title}
-                </h3>
-                <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                  {service.description}
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full hover:text-primary hover:border-primary"
-                  onClick={() => setSelectedService(index)}
+        <div className="max-w-4xl mx-auto animate-slide-in">
+          <Accordion type="single" collapsible className="space-y-4">
+            {categories.map((category) => {
+              const Icon = category.icon 
+                ? iconComponents[category.icon as keyof typeof iconComponents] || Smartphone
+                : Smartphone;
+              const categoryServices = services[category.id] || [];
+              
+              return (
+                <AccordionItem 
+                  key={category.id} 
+                  value={category.id}
+                  className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100"
                 >
-                  Подробнее
-                </Button>
-              </div>
-            );
-          })}
+                  <AccordionTrigger className="px-6 py-4 hover:no-underline group">
+                    <div className="flex items-center gap-4">
+                      <Icon className="h-8 w-8 text-primary group-hover:scale-110 transition-transform duration-300" />
+                      <span className="text-lg font-semibold text-gray-800 group-hover:text-primary transition-colors">
+                        {category.name}
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4">
+                    <div className="space-y-3 pt-2">
+                      {categoryServices.length > 0 ? (
+                        categoryServices.map((service) => (
+                          <div 
+                            key={service.id}
+                            className="flex justify-between items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors duration-200"
+                          >
+                            <span className="text-gray-700">{service.name}</span>
+                            <span className="text-primary font-semibold">{service.price} ₽</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-500 text-sm italic">Услуги в этой категории пока не добавлены</p>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
         </div>
       </div>
-      {selectedService !== null && services[selectedService] && (
-        <ServicePriceDialog
-          isOpen={selectedService !== null}
-          onClose={() => setSelectedService(null)}
-          serviceTitle={services[selectedService].title}
-          prices={prices[services[selectedService].id] || []}
-        />
-      )}
     </section>
   );
 };

@@ -130,10 +130,10 @@ export const Contact = () => {
   };
 
   return (
-    <section id="contact" className="py-12 sm:py-16 bg-gray-50">
+    <section id="contact" className="py-12 sm:py-16 bg-gradient-to-b from-gray-50 to-white">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12">
-          <div className="space-y-6 sm:space-y-8">
+          <div className="space-y-6 sm:space-y-8 animate-fade-in">
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold mb-4">Свяжитесь с нами</h2>
               <p className="text-gray-600 text-sm sm:text-base">
@@ -245,9 +245,9 @@ export const Contact = () => {
               </Button>
             </form>
           </div>
-          <div className="space-y-6 sm:space-y-8">
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
-              <h3 className="text-lg sm:text-xl font-semibold mb-4">Контактная информация</h3>
+          <div className="space-y-6 sm:space-y-8 animate-slide-in">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg hover-lift border border-gray-100">
+              <h3 className="text-lg sm:text-xl font-semibold mb-4 text-primary">Контактная информация</h3>
               <div className="space-y-4">
                 <div className="flex items-center">
                   <Phone className="h-5 w-5 text-primary mr-3" />
@@ -275,7 +275,7 @@ export const Contact = () => {
                 </div>
               </div>
             </div>
-            <div className="w-full h-[400px] rounded-lg overflow-hidden shadow-lg">
+            <div className="w-full h-[400px] rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
               {mapUrl ? (
                 <iframe
                   src={mapUrl}
@@ -288,7 +288,7 @@ export const Contact = () => {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
-                  Карта не настроена
+                  Карта не настроена. Добавьте ссылку на карту в админ панели.
                 </div>
               )}
             </div>
