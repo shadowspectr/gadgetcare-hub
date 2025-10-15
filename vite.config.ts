@@ -38,6 +38,6 @@ export default defineConfig(({ mode }) => ({
     // Ensure compatibility with older browsers
     polyfillModulePreload: true,
   },
-  // Using empty string for base to ensure assets are loaded properly
-  base: ''
+  // Use root path for proper routing on all hosting platforms
+  base: '/'
 }));
