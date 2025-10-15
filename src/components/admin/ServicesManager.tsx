@@ -270,6 +270,19 @@ export const ServicesManager = () => {
         </div>
       </div>
 
+      <div className="bg-muted/50 p-4 rounded-lg border">
+        <p className="text-sm text-muted-foreground">
+          <strong>Формат Excel файла:</strong> 3 колонки с заголовками "Категория", "Услуга", "Цена". 
+          <a 
+            href="/excel-template-example.md" 
+            target="_blank" 
+            className="text-primary hover:underline ml-1"
+          >
+            Подробная инструкция
+          </a>
+        </p>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
