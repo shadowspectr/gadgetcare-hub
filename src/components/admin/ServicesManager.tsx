@@ -56,8 +56,10 @@ export const ServicesManager = () => {
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
+  const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
   const [isAddServiceDialogOpen, setIsAddServiceDialogOpen] = useState(false);
   const [isEditServiceDialogOpen, setIsEditServiceDialogOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const { toast } = useToast();
 
@@ -112,6 +114,45 @@ export const ServicesManager = () => {
 
     toast({ title: "Успешно", description: "Категория добавлена" });
     setIsAddCategoryDialogOpen(false);
+    fetchCategories();
+  };
+
+  const handleEditCategory = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedCategory) return;
+
+    const formData = new FormData(event.currentTarget);
+    
+    const { error } = await supabase
+      .from("service_categories")
+      .update({
+        name: formData.get("name") as string,
+        icon: formData.get("icon") as string,
+      })
+      .eq("id", selectedCategory.id);
+
+    if (error) {
+      toast({ title: "Ошибка", description: "Не удалось обновить категорию", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Успешно", description: "Категория обновлена" });
+    setIsEditCategoryDialogOpen(false);
+    fetchCategories();
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    const { error } = await supabase
+      .from("service_categories")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Ошибка", description: "Не удалось удалить категорию", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Успешно", description: "Категория удалена" });
     fetchCategories();
   };
 
@@ -283,7 +324,58 @@ export const ServicesManager = () => {
         </p>
       </div>
 
-      <Table>
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold">Категории</h3>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Иконка</TableHead>
+              <TableHead>Название</TableHead>
+              <TableHead className="text-right">Действия</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {categories.map((category) => {
+              const Icon = category.icon && category.icon in iconComponents 
+                ? iconComponents[category.icon as keyof typeof iconComponents]
+                : null;
+              
+              return (
+                <TableRow key={category.id}>
+                  <TableCell>
+                    {Icon ? <Icon className="h-5 w-5 text-primary" /> : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="font-medium">{category.name}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCategory(category);
+                        setIsEditCategoryDialogOpen(true);
+                      }}
+                      className="mr-2"
+                    >
+                      Изменить
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteCategory(category.id)}
+                    >
+                      Удалить
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold">Услуги</h3>
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Категория</TableHead>
@@ -321,7 +413,8 @@ export const ServicesManager = () => {
             </TableRow>
           ))}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
 
       <Dialog open={isAddCategoryDialogOpen} onOpenChange={setIsAddCategoryDialogOpen}>
         <DialogContent>
@@ -348,6 +441,42 @@ export const ServicesManager = () => {
             </div>
             <DialogFooter>
               <Button type="submit">Добавить</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditCategoryDialogOpen} onOpenChange={setIsEditCategoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Редактировать категорию</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditCategory} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="edit-category-name" className="text-sm font-medium">Название</label>
+              <Input 
+                id="edit-category-name" 
+                name="name" 
+                defaultValue={selectedCategory?.name}
+                required 
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="edit-category-icon" className="text-sm font-medium">Иконка</label>
+              <select
+                id="edit-category-icon"
+                name="icon"
+                defaultValue={selectedCategory?.icon || ""}
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+              >
+                <option value="">Без иконки</option>
+                {Object.keys(iconComponents).map((icon) => (
+                  <option key={icon} value={icon}>{icon}</option>
+                ))}
+              </select>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Сохранить</Button>
             </DialogFooter>
           </form>
         </DialogContent>
