@@ -287,14 +287,13 @@ export const ServicesManager = () => {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Управление услугами</h2>
         <div className="flex gap-2">
-          <label htmlFor="excel-upload">
-            <Button variant="outline" className="cursor-pointer" asChild>
-              <span>
-                <Upload className="mr-2 h-4 w-4" />
-                Импорт из Excel
-              </span>
-            </Button>
-          </label>
+          <Button 
+            variant="outline" 
+            onClick={() => document.getElementById('excel-upload')?.click()}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Импорт из Excel
+          </Button>
           <input
             id="excel-upload"
             type="file"
