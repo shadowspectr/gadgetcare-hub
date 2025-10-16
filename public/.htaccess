@@ -1,22 +1,20 @@
 
-# Enable mod_rewrite
+# Enable mod_rewrite for SPA routing
 RewriteEngine On
 RewriteBase /
 
-# Block WordPress scanning
+# Block WordPress scanning attempts
 RewriteCond %{REQUEST_URI} ^.*/wp-.*$ [OR]
 RewriteCond %{REQUEST_URI} ^.*/wordpress/.*$
 RewriteRule .* - [F,L]
 
-# If request is not a file
+# Redirect all requests to index.html for SPA routing
+# Skip if it's an actual file
 RewriteCond %{REQUEST_FILENAME} !-f
-# If request is not a directory
+# Skip if it's an actual directory
 RewriteCond %{REQUEST_FILENAME} !-d
-# If request is not a symbolic link
-RewriteCond %{REQUEST_FILENAME} !-l
-
-# Redirect all requests to index.html
-RewriteRule ^(.*)$ index.html [QSA,L]
+# Rewrite everything else to index.html
+RewriteRule ^ index.html [L]
 
 # Set correct MIME types
 <IfModule mod_mime.c>
