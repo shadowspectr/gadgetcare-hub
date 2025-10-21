@@ -47,8 +47,8 @@ serve(async (req) => {
     const { token } = await authResponse.json() as LiveSkladAuthResponse
     console.log('Successfully authenticated with LiveSklad')
 
-    // Fetch products from LiveSklad
-    const productsResponse = await fetch('https://api.livesklad.com/company/goods', {
+    // Fetch products from LiveSklad - try /company/products endpoint
+    const productsResponse = await fetch('https://api.livesklad.com/company/products', {
       headers: {
         'Authorization': token,
       },
