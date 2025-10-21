@@ -1,1 +1,7 @@
 project_id = "dnyxuzyvpoeuwvwauekj"
+
+[functions.check-order-status]
+verify_jwt = false
+
+[functions.get-livesklad-products]
+verify_jwt = false

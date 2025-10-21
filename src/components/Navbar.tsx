@@ -1,15 +1,50 @@
 import { useState } from "react";
 import { Menu, X, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleCallRequest = () => {
-    const contactSection = document.getElementById('contact');
-    if (contactSection) {
-      contactSection.scrollIntoView({ behavior: 'smooth' });
+    if (location.pathname !== '/') {
+      navigate('/');
+      setTimeout(() => {
+        const contactSection = document.getElementById('contact');
+        if (contactSection) {
+          contactSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+    } else {
+      const contactSection = document.getElementById('contact');
+      if (contactSection) {
+        contactSection.scrollIntoView({ behavior: 'smooth' });
+      }
     }
+  };
+
+  const handleNavigation = (path: string, sectionId?: string) => {
+    if (path === '/' && sectionId) {
+      if (location.pathname !== '/') {
+        navigate('/');
+        setTimeout(() => {
+          const section = document.getElementById(sectionId);
+          if (section) {
+            section.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      } else {
+        const section = document.getElementById(sectionId);
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    } else {
+      navigate(path);
+    }
+    setIsOpen(false);
   };
 
   return (
@@ -25,15 +60,30 @@ export const Navbar = () => {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-4 lg:space-x-8">
-            <a href="#" className="text-gray-700 hover:text-primary transition-colors">
+            <button 
+              onClick={() => handleNavigation('/')}
+              className="text-gray-700 hover:text-primary transition-colors"
+            >
               Главная
-            </a>
-            <a href="#services" className="text-gray-700 hover:text-primary transition-colors">
+            </button>
+            <button 
+              onClick={() => handleNavigation('/', 'services')}
+              className="text-gray-700 hover:text-primary transition-colors"
+            >
               Услуги
-            </a>
-            <a href="#contact" className="text-gray-700 hover:text-primary transition-colors">
+            </button>
+            <button 
+              onClick={() => handleNavigation('/shop')}
+              className="text-gray-700 hover:text-primary transition-colors"
+            >
+              Магазин
+            </button>
+            <button 
+              onClick={() => handleNavigation('/', 'contact')}
+              className="text-gray-700 hover:text-primary transition-colors"
+            >
               Контакты
-            </a>
+            </button>
             <Button 
               className="bg-primary hover:bg-primary/90 whitespace-nowrap"
               onClick={handleCallRequest}
@@ -58,15 +108,30 @@ export const Navbar = () => {
         {isOpen && (
           <div className="md:hidden pb-4 animate-fade-in">
             <div className="flex flex-col space-y-4">
-              <a href="#" className="text-gray-700 hover:text-primary transition-colors">
+              <button 
+                onClick={() => handleNavigation('/')}
+                className="text-gray-700 hover:text-primary transition-colors text-left"
+              >
                 Главная
-              </a>
-              <a href="#services" className="text-gray-700 hover:text-primary transition-colors">
+              </button>
+              <button 
+                onClick={() => handleNavigation('/', 'services')}
+                className="text-gray-700 hover:text-primary transition-colors text-left"
+              >
                 Услуги
-              </a>
-              <a href="#contact" className="text-gray-700 hover:text-primary transition-colors">
+              </button>
+              <button 
+                onClick={() => handleNavigation('/shop')}
+                className="text-gray-700 hover:text-primary transition-colors text-left"
+              >
+                Магазин
+              </button>
+              <button 
+                onClick={() => handleNavigation('/', 'contact')}
+                className="text-gray-700 hover:text-primary transition-colors text-left"
+              >
                 Контакты
-              </a>
+              </button>
               <Button 
                 className="bg-primary hover:bg-primary/90"
                 onClick={handleCallRequest}
