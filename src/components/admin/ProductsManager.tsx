@@ -32,6 +32,9 @@ interface Product {
 
 export const ProductsManager = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -49,10 +52,22 @@ export const ProductsManager = () => {
       const { data, error } = await supabase
         .from("products")
         .select("*")
+        .order("category_name", { ascending: true, nullsFirst: false })
         .order("name");
 
       if (error) throw error;
-      setProducts(data || []);
+      
+      const productsList = data || [];
+      setProducts(productsList);
+      
+      // Извлекаем уникальные категории
+      const uniqueCategories = Array.from(
+        new Set(productsList.map(p => p.category_name).filter(Boolean))
+      ).sort() as string[];
+      setCategories(uniqueCategories);
+      
+      // Инициализируем фильтрованный список
+      setFilteredProducts(productsList);
     } catch (error) {
       console.error("Error fetching products:", error);
       toast({
@@ -63,6 +78,34 @@ export const ProductsManager = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (selectedCategories.length === 0) {
+      setFilteredProducts(products);
+    } else {
+      setFilteredProducts(
+        products.filter(p => 
+          p.category_name && selectedCategories.includes(p.category_name)
+        )
+      );
+    }
+  }, [selectedCategories, products]);
+
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+  };
+
+  const selectAllCategories = () => {
+    setSelectedCategories(categories);
+  };
+
+  const clearCategories = () => {
+    setSelectedCategories([]);
   };
 
   const handleExcelImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -407,9 +450,50 @@ export const ProductsManager = () => {
           <div className="text-sm text-muted-foreground">
             <p>Всего товаров: {products.length}</p>
             <p>В наличии: {products.filter(p => p.quantity > 0).length}</p>
+            <p>Показано: {filteredProducts.length}</p>
           </div>
         </CardContent>
       </Card>
+
+      {categories.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Фильтр по категориям</CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllCategories}
+                >
+                  Выбрать все
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearCategories}
+                >
+                  Сбросить
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <Button
+                  key={category}
+                  variant={selectedCategories.includes(category) ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleCategory(category)}
+                >
+                  {category}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -421,16 +505,26 @@ export const ProductsManager = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Название</TableHead>
+                  <TableHead>Код</TableHead>
+                  <TableHead>Артикул</TableHead>
                   <TableHead>Категория</TableHead>
                   <TableHead>Количество</TableHead>
-                  <TableHead>Цена</TableHead>
+                  <TableHead>Розничная цена</TableHead>
+                  <TableHead>Закупочная</TableHead>
+                  <TableHead>Гарантия</TableHead>
                   <TableHead className="text-right">Действия</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product) => (
+                {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell className="font-medium max-w-xs">
+                      <div className="truncate" title={product.name}>
+                        {product.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{product.code || '-'}</TableCell>
+                    <TableCell>{product.article || '-'}</TableCell>
                     <TableCell>{product.category_name || '-'}</TableCell>
                     <TableCell>
                       <span className={product.quantity > 0 ? 'text-green-600' : 'text-red-600'}>
@@ -439,6 +533,13 @@ export const ProductsManager = () => {
                     </TableCell>
                     <TableCell>
                       {product.retail_price ? `${product.retail_price.toLocaleString('ru-RU')} ₽` : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {product.purchase_price ? `${product.purchase_price.toLocaleString('ru-RU')} ₽` : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {product.warranty_days ? `${product.warranty_days} дн.` : 
+                       product.warranty_months ? `${product.warranty_months} мес.` : '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
