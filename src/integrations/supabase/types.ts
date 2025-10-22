@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      products: {
+        Row: {
+          article: string | null
+          category_name: string | null
+          category_path: string | null
+          code: string | null
+          country: string | null
+          created_at: string
+          description: string | null
+          id: string
+          min_quantity: number | null
+          name: string
+          photo_url: string | null
+          purchase_price: number | null
+          quantity: number | null
+          retail_price: number | null
+          unit: string | null
+          updated_at: string
+          warranty_days: number | null
+          warranty_months: number | null
+        }
+        Insert: {
+          article?: string | null
+          category_name?: string | null
+          category_path?: string | null
+          code?: string | null
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_quantity?: number | null
+          name: string
+          photo_url?: string | null
+          purchase_price?: number | null
+          quantity?: number | null
+          retail_price?: number | null
+          unit?: string | null
+          updated_at?: string
+          warranty_days?: number | null
+          warranty_months?: number | null
+        }
+        Update: {
+          article?: string | null
+          category_name?: string | null
+          category_path?: string | null
+          code?: string | null
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_quantity?: number | null
+          name?: string
+          photo_url?: string | null
+          purchase_price?: number | null
+          quantity?: number | null
+          retail_price?: number | null
+          unit?: string | null
+          updated_at?: string
+          warranty_days?: number | null
+          warranty_months?: number | null
+        }
+        Relationships: []
+      }
       service_categories: {
         Row: {
           created_at: string

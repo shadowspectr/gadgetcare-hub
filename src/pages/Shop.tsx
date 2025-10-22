@@ -29,9 +29,13 @@ export const Shop = () => {
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
-      console.log('Fetching products from LiveSklad...');
+      console.log('Fetching products from database...');
       
-      const { data, error } = await supabase.functions.invoke('get-livesklad-products');
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .gt('quantity', 0)
+        .order('name');
 
       if (error) {
         console.error('Error fetching products:', error);
@@ -40,8 +44,18 @@ export const Shop = () => {
 
       console.log('Products data:', data);
 
-      if (data.success && data.products) {
-        setProducts(data.products);
+      if (data) {
+        // Преобразуем данные из БД в формат, который ожидает компонент
+        const formattedProducts: Product[] = data.map(product => ({
+          id: product.id,
+          name: product.name,
+          price: product.retail_price || 0,
+          quantity: product.quantity,
+          description: product.description || undefined,
+          image: product.photo_url || undefined,
+          category: product.category_name || undefined,
+        }));
+        setProducts(formattedProducts);
       } else {
         toast({
           title: "Ошибка",
@@ -53,7 +67,7 @@ export const Shop = () => {
       console.error('Error:', error);
       toast({
         title: "Ошибка",
-        description: "Не удалось подключиться к складу",
+        description: "Не удалось загрузить товары из базы данных",
         variant: "destructive",
       });
     } finally {
