@@ -12,6 +12,7 @@ export const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -32,7 +33,7 @@ export const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
@@ -47,22 +48,45 @@ export const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/admin`
+          }
+        });
 
-      if (error) {
-        toast({
-          title: "Ошибка входа",
-          description: error.message,
-          variant: "destructive",
-        });
+        if (error) {
+          toast({
+            title: "Ошибка регистрации",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Регистрация успешна",
+            description: "Вы зарегистрированы! Выполняется вход...",
+          });
+        }
       } else {
-        toast({
-          title: "Успешный вход",
-          description: "Перенаправление в панель администратора...",
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         });
+
+        if (error) {
+          toast({
+            title: "Ошибка входа",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Успешный вход",
+            description: "Перенаправление в панель администратора...",
+          });
+        }
       }
     } catch (error) {
       toast({
@@ -79,11 +103,15 @@ export const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Вход в систему</CardTitle>
-          <CardDescription>Введите данные для входа в панель администратора</CardDescription>
+          <CardTitle>{isSignUp ? "Регистрация" : "Вход в систему"}</CardTitle>
+          <CardDescription>
+            {isSignUp 
+              ? "Создайте новый аккаунт администратора" 
+              : "Введите данные для входа в панель администратора"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -110,11 +138,22 @@ export const Auth = () => {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Вход...
+                  {isSignUp ? "Регистрация..." : "Вход..."}
                 </>
               ) : (
-                "Войти"
+                isSignUp ? "Зарегистрироваться" : "Войти"
               )}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => setIsSignUp(!isSignUp)}
+              disabled={loading}
+            >
+              {isSignUp 
+                ? "Уже есть аккаунт? Войти" 
+                : "Нет аккаунта? Зарегистрироваться"}
             </Button>
           </form>
         </CardContent>
