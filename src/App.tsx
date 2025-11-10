@@ -3,6 +3,7 @@ import { Index } from "@/pages/Index";
 import { Admin } from "@/pages/Admin";
 import { Shop } from "@/pages/Shop";
 import { Auth } from "@/pages/Auth";
+import { TelegramShop } from "@/pages/TelegramShop";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/shop" element={<Shop />} />
+        <Route path="/telegram-shop" element={<TelegramShop />} />
       </Routes>
     </Router>
   );
