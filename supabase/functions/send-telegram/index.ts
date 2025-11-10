@@ -1,10 +1,22 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+// Input validation schema
+const requestSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
+  phone: z.string().trim().min(10, "Phone too short").max(20, "Phone too long").regex(/^[+\d\s()-]+$/, "Invalid phone format"),
+  message: z.string().trim().min(1, "Message is required").max(1000, "Message too long"),
+  imageBase64: z.string().optional().nullable().refine(
+    (val) => !val || val.length < 10_000_000,
+    { message: "Image too large (max 10MB)" }
+  ),
+  imageName: z.string().optional().nullable()
+})
 
 interface RequestBody {
   name: string;
@@ -28,7 +40,25 @@ serve(async (req) => {
       throw new Error('Missing Telegram configuration')
     }
 
-    const { name, phone, message, imageBase64 } = await req.json() as RequestBody
+    // Parse and validate request body
+    const body = await req.json()
+    const validation = requestSchema.safeParse(body)
+    
+    if (!validation.success) {
+      console.error('Validation failed:', validation.error)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid input', 
+          details: validation.error.issues.map(i => i.message).join(', ')
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
+
+    const { name, phone, message, imageBase64 } = validation.data
     
     // Format text message
     const telegramMessage = `
@@ -128,9 +158,10 @@ ${imageBase64 ? '📷 Фото устройства: прикреплено' : '
       },
     )
   } catch (error) {
-    console.error('Error in send-telegram function:', error.message)
+    console.error('Error in send-telegram function:', error)
+    // Don't expose internal error details to clients
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Request failed' }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
