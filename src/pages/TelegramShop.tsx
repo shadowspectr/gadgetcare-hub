@@ -1,12 +1,33 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ShoppingCart, Heart, Search, User, Package } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Search, Heart, ShoppingCart, User, Home } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp: {
+        initDataUnsafe: {
+          user?: {
+            id: number;
+            first_name?: string;
+            last_name?: string;
+            username?: string;
+            photo_url?: string;
+          };
+        };
+        ready: () => void;
+        expand: () => void;
+        close: () => void;
+      };
+    };
+  }
+}
 
 type Product = {
   id: string;
@@ -22,8 +43,8 @@ type CartItem = Product & {
   cartQuantity: number;
 };
 
-type TabType = "all" | "new" | "used";
-type FilterType = "favorites" | "all" | "headphones" | "watches";
+type TabType = "all" | "favorites" | "cart" | "profile";
+type FilterType = "all" | "available" | "unavailable";
 
 export const TelegramShop = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,18 +55,29 @@ export const TelegramShop = () => {
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [telegramUser, setTelegramUser] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
+    // Инициализация Telegram WebApp
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+      const user = window.Telegram.WebApp.initDataUnsafe.user;
+      if (user) {
+        setTelegramUser(user);
+      }
+    }
     fetchProducts();
     
     // Load favorites and cart from localStorage
-    const savedFavorites = localStorage.getItem("tg_favorites");
+    const savedFavorites = localStorage.getItem("telegramFavorites");
     if (savedFavorites) {
       setFavorites(new Set(JSON.parse(savedFavorites)));
     }
     
-    const savedCart = localStorage.getItem("tg_cart");
+    const savedCart = localStorage.getItem("telegramCart");
     if (savedCart) {
       setCart(JSON.parse(savedCart));
     }
@@ -56,8 +88,8 @@ export const TelegramShop = () => {
     const { data, error } = await supabase
       .from("products")
       .select("*")
-      .gt("quantity", 0)
-      .order("created_at", { ascending: false });
+      .order("category_name", { ascending: true })
+      .order("name");
 
     if (error) {
       toast({
@@ -75,11 +107,17 @@ export const TelegramShop = () => {
     const newFavorites = new Set(favorites);
     if (newFavorites.has(productId)) {
       newFavorites.delete(productId);
+      toast({
+        title: "Удалено из избранного",
+      });
     } else {
       newFavorites.add(productId);
+      toast({
+        title: "Добавлено в избранное",
+      });
     }
     setFavorites(newFavorites);
-    localStorage.setItem("tg_favorites", JSON.stringify([...newFavorites]));
+    localStorage.setItem("telegramFavorites", JSON.stringify([...newFavorites]));
   };
 
   const addToCart = (product: Product) => {
@@ -87,6 +125,14 @@ export const TelegramShop = () => {
     let newCart: CartItem[];
     
     if (existingItem) {
+      if (existingItem.cartQuantity >= product.quantity) {
+        toast({
+          title: "Недостаточно товара",
+          description: "Вы уже добавили максимальное количество",
+          variant: "destructive",
+        });
+        return;
+      }
       newCart = cart.map((item) =>
         item.id === product.id
           ? { ...item, cartQuantity: item.cartQuantity + 1 }
@@ -97,7 +143,7 @@ export const TelegramShop = () => {
     }
     
     setCart(newCart);
-    localStorage.setItem("tg_cart", JSON.stringify(newCart));
+    localStorage.setItem("telegramCart", JSON.stringify(newCart));
     toast({
       title: "Добавлено в корзину",
       description: product.name,
@@ -107,7 +153,7 @@ export const TelegramShop = () => {
   const removeFromCart = (productId: string) => {
     const newCart = cart.filter((item) => item.id !== productId);
     setCart(newCart);
-    localStorage.setItem("tg_cart", JSON.stringify(newCart));
+    localStorage.setItem("telegramCart", JSON.stringify(newCart));
   };
 
   const updateCartQuantity = (productId: string, quantity: number) => {
@@ -116,17 +162,32 @@ export const TelegramShop = () => {
       return;
     }
     
+    const product = cart.find((item) => item.id === productId);
+    if (product && quantity > product.quantity) {
+      toast({
+        title: "Недостаточно товара",
+        description: "Вы достигли максимального количества",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const newCart = cart.map((item) =>
       item.id === productId ? { ...item, cartQuantity: quantity } : item
     );
     setCart(newCart);
-    localStorage.setItem("tg_cart", JSON.stringify(newCart));
+    localStorage.setItem("telegramCart", JSON.stringify(newCart));
   };
 
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFavorites = activeFilter === "favorites" ? favorites.has(product.id) : true;
-    return matchesSearch && matchesFavorites;
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         product.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = 
+      activeFilter === "all" ||
+      (activeFilter === "available" && product.quantity > 0) ||
+      (activeFilter === "unavailable" && product.quantity === 0);
+    const matchesFavorites = activeTab === "favorites" ? favorites.has(product.id) : true;
+    return matchesSearch && matchesFilter && matchesFavorites;
   });
 
   const totalPrice = cart.reduce(
@@ -134,7 +195,7 @@ export const TelegramShop = () => {
     0
   );
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) {
       toast({
         title: "Корзина пуста",
@@ -143,218 +204,179 @@ export const TelegramShop = () => {
       });
       return;
     }
-    
-    toast({
-      title: "Оформление заказа",
-      description: "Функция находится в разработке",
-    });
+
+    try {
+      const orderData = {
+        user: telegramUser,
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.retail_price,
+          quantity: item.cartQuantity,
+        })),
+        total: totalPrice,
+        timestamp: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.functions.invoke('send-telegram-order', {
+        body: orderData,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Заказ оформлен",
+        description: "Мы получили ваш заказ и свяжемся с вами в ближайшее время",
+      });
+
+      // Очищаем корзину
+      setCart([]);
+      localStorage.removeItem("telegramCart");
+      setIsCartOpen(false);
+    } catch (error) {
+      console.error("Error sending order:", error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось отправить заказ. Попробуйте еще раз.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pb-20">
       {/* Header */}
-      <div className="bg-[#1a1a1a] sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center font-bold text-lg">
-                A
-              </div>
-              <h1 className="text-xl font-bold">Айден Маркет</h1>
-            </div>
-            <button className="text-gray-400">⋮</button>
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b shadow-sm">
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Доктор Гаджет
+            </h1>
+            <Badge variant="secondary" className="text-xs">
+              {products.length} товаров
+            </Badge>
           </div>
-          
+
           {/* Search */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Поиск товаров..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 bg-[#2a2a2a] border-gray-700 text-white placeholder:text-gray-500"
+              className="pl-10"
             />
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-3">
-            <Button
-              variant={activeTab === "all" ? "default" : "ghost"}
-              className={`flex-1 ${activeTab === "all" ? "bg-gray-700" : "bg-transparent text-gray-400"}`}
-              onClick={() => setActiveTab("all")}
-            >
-              Все
-            </Button>
-            <Button
-              variant={activeTab === "new" ? "default" : "ghost"}
-              className={`flex-1 ${activeTab === "new" ? "bg-gray-700" : "bg-transparent text-gray-400"}`}
-              onClick={() => setActiveTab("new")}
-            >
-              Новые
-            </Button>
-            <Button
-              variant={activeTab === "used" ? "default" : "ghost"}
-              className={`flex-1 ${activeTab === "used" ? "bg-gray-700" : "bg-transparent text-gray-400"}`}
-              onClick={() => setActiveTab("used")}
-            >
-              Б/у
-            </Button>
-          </div>
-
-          {/* Filters */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            <Button
-              variant={activeFilter === "favorites" ? "default" : "outline"}
-              size="sm"
-              className={`whitespace-nowrap ${
-                activeFilter === "favorites"
-                  ? "bg-pink-600 hover:bg-pink-700 border-pink-600"
-                  : "bg-transparent border-gray-600 text-gray-300"
-              }`}
-              onClick={() => setActiveFilter("favorites")}
-            >
-              <Heart className="h-4 w-4 mr-1" />
-              Избранное
-            </Button>
+          {/* Filter Buttons */}
+          <div className="flex gap-2">
             <Button
               variant={activeFilter === "all" ? "default" : "outline"}
               size="sm"
-              className={`whitespace-nowrap ${
-                activeFilter === "all"
-                  ? "bg-white text-black hover:bg-gray-200"
-                  : "bg-transparent border-gray-600 text-gray-300"
-              }`}
               onClick={() => setActiveFilter("all")}
+              className="flex-1"
             >
               Все
             </Button>
             <Button
-              variant={activeFilter === "headphones" ? "default" : "outline"}
+              variant={activeFilter === "available" ? "default" : "outline"}
               size="sm"
-              className="whitespace-nowrap bg-transparent border-gray-600 text-gray-300"
-              onClick={() => setActiveFilter("headphones")}
+              onClick={() => setActiveFilter("available")}
+              className="flex-1"
             >
-              Наушники
+              В наличии
             </Button>
             <Button
-              variant={activeFilter === "watches" ? "default" : "outline"}
+              variant={activeFilter === "unavailable" ? "default" : "outline"}
               size="sm"
-              className="whitespace-nowrap bg-transparent border-gray-600 text-gray-300"
-              onClick={() => setActiveFilter("watches")}
+              onClick={() => setActiveFilter("unavailable")}
+              className="flex-1"
             >
-              Часы
+              Нет в наличии
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Products */}
-      <div className="container mx-auto px-4 py-4">
-        <h2 className="text-2xl font-bold mb-4">Товары</h2>
-        
+      {/* Products Grid */}
+      <div className="p-4">
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <div className="flex justify-center items-center min-h-[400px]">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Товары не найдены</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 pb-20">
+          <div className="grid grid-cols-2 gap-4">
             {filteredProducts.map((product) => (
-              <Card
-                key={product.id}
-                className="bg-[#1a1a1a] border-gray-800 overflow-hidden"
-              >
-                <CardContent className="p-0">
-                  <div className="relative">
-                    <img
-                      src={product.photo_url || "/placeholder.svg"}
-                      alt={product.name}
-                      className="w-full h-48 object-cover"
+              <Card key={product.id} className="overflow-hidden hover-lift animate-fade-in">
+                <div className="relative">
+                  <img
+                    src={product.photo_url || "/placeholder.svg"}
+                    alt={product.name}
+                    className="w-full h-40 object-cover"
+                  />
+                  <button
+                    onClick={() => toggleFavorite(product.id)}
+                    className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur rounded-full"
+                  >
+                    <Heart
+                      className={`h-4 w-4 ${
+                        favorites.has(product.id)
+                          ? "fill-red-500 text-red-500"
+                          : "text-foreground"
+                      }`}
                     />
-                    <button
-                      onClick={() => toggleFavorite(product.id)}
-                      className="absolute top-2 right-2 p-2 bg-black/50 rounded-full"
-                    >
-                      <Heart
-                        className={`h-5 w-5 ${
-                          favorites.has(product.id)
-                            ? "fill-pink-500 text-pink-500"
-                            : "text-white"
-                        }`}
-                      />
-                    </button>
-                    <div className="absolute bottom-2 left-2">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4].map((star) => (
-                          <span key={star} className="text-yellow-500">⭐</span>
-                        ))}
-                        <span className="text-gray-400">⭐</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-3">
-                    <h3 className="font-semibold text-sm mb-1 line-clamp-2">
+                  </button>
+                  {product.quantity === 0 && (
+                    <Badge className="absolute bottom-2 left-2 bg-destructive">
+                      Нет в наличии
+                    </Badge>
+                  )}
+                  {product.quantity > 0 && product.quantity < 5 && (
+                    <Badge className="absolute bottom-2 left-2 bg-orange-500">
+                      Осталось {product.quantity}
+                    </Badge>
+                  )}
+                </div>
+                
+                <div className="p-3 space-y-2">
+                  <div>
+                    {product.category_name && (
+                      <Badge variant="secondary" className="text-xs mb-1">
+                        {product.category_name}
+                      </Badge>
+                    )}
+                    <h3 className="font-semibold text-sm line-clamp-2">
                       {product.name}
                     </h3>
-                    <p className="text-xl font-bold mb-2">
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-lg font-bold text-primary">
                       {product.retail_price?.toLocaleString()} ₽
                     </p>
                     <Button
                       onClick={() => addToCart(product)}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      disabled={product.quantity === 0}
                       size="sm"
+                      className="gap-1"
                     >
-                      В корзину
+                      <ShoppingCart className="h-3 w-3" />
                     </Button>
                   </div>
-                </CardContent>
+                </div>
               </Card>
             ))}
           </div>
         )}
-        
-        {!loading && filteredProducts.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
-            <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <p>Товары не найдены</p>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-800">
-        <div className="container mx-auto px-4 py-3 flex justify-around">
-          <button className="flex flex-col items-center gap-1">
-            <Package className="h-6 w-6" />
-            <span className="text-xs">Маркет</span>
-          </button>
-          <button className="flex flex-col items-center gap-1 text-gray-500">
-            <ShoppingCart className="h-6 w-6" />
-            <span className="text-xs">Заказы</span>
-          </button>
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="flex flex-col items-center gap-1 text-gray-500 relative"
-          >
-            <ShoppingCart className="h-6 w-6" />
-            {cart.length > 0 && (
-              <Badge className="absolute -top-1 -right-1 bg-red-600 text-white text-xs h-5 w-5 flex items-center justify-center rounded-full p-0">
-                {cart.length}
-              </Badge>
-            )}
-            <span className="text-xs">Корзина</span>
-          </button>
-          <button className="flex flex-col items-center gap-1 text-gray-500">
-            <User className="h-6 w-6" />
-            <span className="text-xs">Профиль</span>
-          </button>
-        </div>
       </div>
 
       {/* Cart Dialog */}
       <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
-        <DialogContent className="bg-[#1a1a1a] text-white border-gray-800 max-w-md">
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" />
@@ -362,23 +384,25 @@ export const TelegramShop = () => {
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="space-y-3">
             {cart.length === 0 ? (
-              <p className="text-center text-gray-400 py-8">Корзина пуста</p>
+              <p className="text-center text-muted-foreground py-8">
+                Корзина пуста
+              </p>
             ) : (
               cart.map((item) => (
                 <div
                   key={item.id}
-                  className="flex gap-3 bg-[#2a2a2a] p-3 rounded-lg"
+                  className="flex gap-3 p-3 rounded-lg border"
                 >
                   <img
                     src={item.photo_url || "/placeholder.svg"}
                     alt={item.name}
                     className="w-20 h-20 object-cover rounded"
                   />
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-sm mb-1">{item.name}</h4>
-                    <p className="text-lg font-bold mb-2">
+                  <div className="flex-1 space-y-2">
+                    <h4 className="font-semibold text-sm line-clamp-2">{item.name}</h4>
+                    <p className="text-lg font-bold text-primary">
                       {item.retail_price?.toLocaleString()} ₽
                     </p>
                     <div className="flex items-center gap-2">
@@ -388,18 +412,18 @@ export const TelegramShop = () => {
                         onClick={() =>
                           updateCartQuantity(item.id, item.cartQuantity - 1)
                         }
-                        className="h-7 w-7 p-0 bg-transparent border-gray-600"
+                        className="h-7 w-7 p-0"
                       >
                         -
                       </Button>
-                      <span className="w-8 text-center">{item.cartQuantity}</span>
+                      <span className="w-8 text-center text-sm">{item.cartQuantity}</span>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() =>
                           updateCartQuantity(item.id, item.cartQuantity + 1)
                         }
-                        className="h-7 w-7 p-0 bg-transparent border-gray-600"
+                        className="h-7 w-7 p-0"
                       >
                         +
                       </Button>
@@ -407,7 +431,7 @@ export const TelegramShop = () => {
                         size="sm"
                         variant="ghost"
                         onClick={() => removeFromCart(item.id)}
-                        className="ml-auto text-red-500 hover:text-red-600"
+                        className="ml-auto text-destructive hover:text-destructive"
                       >
                         Удалить
                       </Button>
@@ -419,14 +443,15 @@ export const TelegramShop = () => {
           </div>
 
           {cart.length > 0 && (
-            <div className="pt-4 border-t border-gray-800">
-              <div className="flex justify-between text-lg font-bold mb-4">
+            <div className="pt-4 border-t space-y-4">
+              <div className="flex justify-between text-lg font-bold">
                 <span>Итого:</span>
-                <span>{totalPrice.toLocaleString()} ₽</span>
+                <span className="text-primary">{totalPrice.toLocaleString()} ₽</span>
               </div>
               <Button
                 onClick={handleCheckout}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className="w-full"
+                size="lg"
               >
                 Оформить заказ
               </Button>
@@ -434,6 +459,108 @@ export const TelegramShop = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Profile Dialog */}
+      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Профиль</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {telegramUser ? (
+              <>
+                {telegramUser.photo_url && (
+                  <div className="flex justify-center">
+                    <img 
+                      src={telegramUser.photo_url} 
+                      alt="Аватар" 
+                      className="h-24 w-24 rounded-full border-4 border-primary"
+                    />
+                  </div>
+                )}
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Имя:</p>
+                    <p className="font-medium text-lg">
+                      {telegramUser.first_name} {telegramUser.last_name || ''}
+                    </p>
+                  </div>
+                  {telegramUser.username && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Username:</p>
+                      <p className="font-medium">@{telegramUser.username}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground">Telegram ID:</p>
+                    <p className="font-mono text-sm">{telegramUser.id}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  Откройте приложение через Telegram для просмотра профиля
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t shadow-lg">
+        <div className="flex justify-around items-center h-16">
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`flex flex-col items-center gap-1 px-4 py-2 transition-colors ${
+              activeTab === "all" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <Home className="h-5 w-5" />
+            <span className="text-xs">Главная</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("favorites")}
+            className={`flex flex-col items-center gap-1 px-4 py-2 transition-colors ${
+              activeTab === "favorites" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <Heart className="h-5 w-5" />
+            <span className="text-xs">Избранное</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("cart");
+              setIsCartOpen(true);
+            }}
+            className={`flex flex-col items-center gap-1 px-4 py-2 relative transition-colors ${
+              activeTab === "cart" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <ShoppingCart className="h-5 w-5" />
+            {cart.length > 0 && (
+              <span className="absolute top-1 right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center animate-scale-in">
+                {cart.length}
+              </span>
+            )}
+            <span className="text-xs">Корзина</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("profile");
+              setIsProfileOpen(true);
+            }}
+            className={`flex flex-col items-center gap-1 px-4 py-2 transition-colors ${
+              activeTab === "profile" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <User className="h-5 w-5" />
+            <span className="text-xs">Профиль</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

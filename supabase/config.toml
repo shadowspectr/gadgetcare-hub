@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.get-livesklad-products]
 verify_jwt = false
+
+[functions.send-telegram-order]
+verify_jwt = false

@@ -39,7 +39,9 @@ export const ProductsManager = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -234,6 +236,69 @@ export const ProductsManager = () => {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Проверка типа файла
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Ошибка",
+        description: "Можно загружать только изображения",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Проверка размера файла (максимум 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Ошибка",
+        description: "Размер изображения не должен превышать 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      // Обновляем поле photo_url в форме
+      const photoInput = document.getElementById('photo_url') as HTMLInputElement;
+      if (photoInput) {
+        photoInput.value = publicUrl;
+      }
+
+      toast({
+        title: "Успешно",
+        description: "Изображение загружено",
+      });
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось загрузить изображение",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSaveProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -418,14 +483,53 @@ export const ProductsManager = () => {
                       rows={3}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="photo_url">URL фото</Label>
-                    <Input
-                      id="photo_url"
-                      name="photo_url"
-                      type="url"
-                      defaultValue={editingProduct?.photo_url || ''}
+                  <div className="space-y-2">
+                    <Label htmlFor="photo_url">Изображение товара</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                        className="gap-2"
+                      >
+                        {isUploadingImage ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Загрузка...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            Загрузить
+                          </>
+                        )}
+                      </Button>
+                      <Input
+                        id="photo_url"
+                        name="photo_url"
+                        type="url"
+                        placeholder="или вставьте URL"
+                        defaultValue={editingProduct?.photo_url || ''}
+                        className="flex-1"
+                      />
+                    </div>
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
                     />
+                    {editingProduct?.photo_url && (
+                      <div className="mt-2">
+                        <img 
+                          src={editingProduct.photo_url} 
+                          alt="Текущее изображение" 
+                          className="h-24 w-24 object-cover rounded border"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button
