@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Heart, ShoppingCart, User, Home } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 declare global {
   interface Window {
@@ -44,7 +47,7 @@ type CartItem = Product & {
 };
 
 type TabType = "all" | "favorites" | "cart" | "profile";
-type FilterType = "all" | "available" | "unavailable";
+type FilterType = "all" | "available";
 
 export const TelegramShop = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -54,8 +57,13 @@ export const TelegramShop = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [categories, setCategories] = useState<string[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [telegramUser, setTelegramUser] = useState<any>(null);
   const { toast } = useToast();
 
@@ -88,6 +96,7 @@ export const TelegramShop = () => {
     const { data, error } = await supabase
       .from("products")
       .select("*")
+      .eq("is_visible", true)
       .order("category_name", { ascending: true })
       .order("name");
 
@@ -99,6 +108,10 @@ export const TelegramShop = () => {
       });
     } else {
       setProducts(data || []);
+      
+      // Extract unique categories
+      const uniqueCategories = [...new Set(data?.map(p => p.category_name).filter(Boolean) as string[])];
+      setCategories(uniqueCategories);
     }
     setLoading(false);
   };
@@ -184,10 +197,12 @@ export const TelegramShop = () => {
                          product.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = 
       activeFilter === "all" ||
-      (activeFilter === "available" && product.quantity > 0) ||
-      (activeFilter === "unavailable" && product.quantity === 0);
+      (activeFilter === "available" && product.quantity > 0);
+    const matchesCategory = 
+      selectedCategory === "all" || 
+      product.category_name === selectedCategory;
     const matchesFavorites = activeTab === "favorites" ? favorites.has(product.id) : true;
-    return matchesSearch && matchesFilter && matchesFavorites;
+    return matchesSearch && matchesFilter && matchesCategory && matchesFavorites;
   });
 
   const totalPrice = cart.reduce(
@@ -195,7 +210,7 @@ export const TelegramShop = () => {
     0
   );
 
-  const handleCheckout = async () => {
+  const handleCheckoutClick = () => {
     if (cart.length === 0) {
       toast({
         title: "Корзина пуста",
@@ -204,10 +219,33 @@ export const TelegramShop = () => {
       });
       return;
     }
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+  };
+
+  const handleCheckout = async () => {
+    if (!phoneNumber.trim()) {
+      toast({
+        title: "Укажите номер телефона",
+        description: "Номер телефона обязателен для оформления заказа",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!agreedToTerms) {
+      toast({
+        title: "Требуется согласие",
+        description: "Необходимо согласие на обработку персональных данных",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       const orderData = {
         user: telegramUser,
+        phoneNumber,
         items: cart.map(item => ({
           id: item.id,
           name: item.name,
@@ -229,10 +267,12 @@ export const TelegramShop = () => {
         description: "Мы получили ваш заказ и свяжемся с вами в ближайшее время",
       });
 
-      // Очищаем корзину
+      // Очищаем корзину и форму
       setCart([]);
       localStorage.removeItem("telegramCart");
-      setIsCartOpen(false);
+      setPhoneNumber("");
+      setAgreedToTerms(false);
+      setIsCheckoutOpen(false);
     } catch (error) {
       console.error("Error sending order:", error);
       toast({
@@ -287,15 +327,22 @@ export const TelegramShop = () => {
             >
               В наличии
             </Button>
-            <Button
-              variant={activeFilter === "unavailable" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveFilter("unavailable")}
-              className="flex-1"
-            >
-              Нет в наличии
-            </Button>
           </div>
+
+          {/* Category Filter */}
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger>
+              <SelectValue placeholder="Все категории" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все категории</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -449,7 +496,7 @@ export const TelegramShop = () => {
                 <span className="text-primary">{totalPrice.toLocaleString()} ₽</span>
               </div>
               <Button
-                onClick={handleCheckout}
+                onClick={handleCheckoutClick}
                 className="w-full"
                 size="lg"
               >
@@ -505,6 +552,64 @@ export const TelegramShop = () => {
                 </p>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout Dialog */}
+      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Оформление заказа</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="phone">Номер телефона *</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+7 (999) 123-45-67"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-2">
+              <p className="font-semibold">Ваш заказ:</p>
+              {cart.map((item) => (
+                <div key={item.id} className="flex justify-between text-sm">
+                  <span>{item.name} x{item.cartQuantity}</span>
+                  <span>{(item.retail_price * item.cartQuantity).toLocaleString()} ₽</span>
+                </div>
+              ))}
+              <div className="pt-2 border-t flex justify-between font-bold">
+                <span>Итого:</span>
+                <span className="text-primary">{totalPrice.toLocaleString()} ₽</span>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="terms"
+                checked={agreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+              />
+              <Label 
+                htmlFor="terms" 
+                className="text-sm leading-tight cursor-pointer"
+              >
+                Я согласен на обработку персональных данных в соответствии с Федеральным законом №152-ФЗ "О персональных данных"
+              </Label>
+            </div>
+
+            <Button
+              onClick={handleCheckout}
+              className="w-full"
+              size="lg"
+              disabled={!phoneNumber.trim() || !agreedToTerms}
+            >
+              Подтвердить заказ
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -24,6 +24,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_visible: boolean
           min_quantity: number | null
           name: string
           photo_url: string | null
@@ -44,6 +45,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_visible?: boolean
           min_quantity?: number | null
           name: string
           photo_url?: string | null
@@ -64,6 +66,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_visible?: boolean
           min_quantity?: number | null
           name?: string
           photo_url?: string | null

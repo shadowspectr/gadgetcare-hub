@@ -22,6 +22,7 @@ interface OrderData {
     last_name?: string;
     username?: string;
   };
+  phoneNumber?: string;
   items: OrderItem[];
   total: number;
   timestamp: string;
@@ -45,8 +46,15 @@ serve(async (req) => {
       if (orderData.user.username) {
         message += `🔗 @${orderData.user.username}\n`;
       }
-      message += `🆔 Telegram ID: \`${orderData.user.id}\`\n\n`;
+      message += `🆔 Telegram ID: \`${orderData.user.id}\`\n`;
     }
+    
+    // Добавляем номер телефона
+    if (orderData.phoneNumber) {
+      message += `📞 Телефон: ${orderData.phoneNumber}\n`;
+    }
+    
+    message += "\n";
 
     // Добавляем товары
     message += "*Товары:*\n";

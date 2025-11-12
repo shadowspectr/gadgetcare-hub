@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, Trash2, Plus, Pencil } from "lucide-react";
+import { Loader2, Upload, Trash2, Plus, Pencil, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import * as XLSX from 'xlsx';
 
 interface Product {
@@ -28,6 +29,7 @@ interface Product {
   warranty_months?: number;
   description?: string;
   photo_url?: string;
+  is_visible?: boolean;
 }
 
 export const ProductsManager = () => {
@@ -312,6 +314,7 @@ export const ProductsManager = () => {
       retail_price: parseFloat(formData.get("retail_price") as string) || null,
       description: formData.get("description") as string || null,
       photo_url: formData.get("photo_url") as string || null,
+      is_visible: formData.get("is_visible") === "on",
     };
 
     try {
@@ -348,6 +351,31 @@ export const ProductsManager = () => {
       toast({
         title: "Ошибка",
         description: "Не удалось сохранить товар",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleProductVisibility = async (product: Product) => {
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update({ is_visible: !product.is_visible })
+        .eq("id", product.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Успешно",
+        description: `Товар ${!product.is_visible ? 'отображается' : 'скрыт'}`,
+      });
+
+      fetchProducts();
+    } catch (error) {
+      console.error("Error toggling visibility:", error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось изменить видимость товара",
         variant: "destructive",
       });
     }
@@ -531,6 +559,16 @@ export const ProductsManager = () => {
                       </div>
                     )}
                   </div>
+                  <div className="flex items-center space-x-2 py-2">
+                    <Switch
+                      id="is_visible"
+                      name="is_visible"
+                      defaultChecked={editingProduct?.is_visible !== false}
+                    />
+                    <Label htmlFor="is_visible">
+                      Отображать товар на сайте и в боте
+                    </Label>
+                  </div>
                   <div className="flex justify-end gap-2">
                     <Button
                       type="button"
@@ -616,6 +654,7 @@ export const ProductsManager = () => {
                   <TableHead>Розничная цена</TableHead>
                   <TableHead>Закупочная</TableHead>
                   <TableHead>Гарантия</TableHead>
+                  <TableHead>Видимость</TableHead>
                   <TableHead className="text-right">Действия</TableHead>
                 </TableRow>
               </TableHeader>
@@ -644,6 +683,20 @@ export const ProductsManager = () => {
                     <TableCell>
                       {product.warranty_days ? `${product.warranty_days} дн.` : 
                        product.warranty_months ? `${product.warranty_months} мес.` : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleProductVisibility(product)}
+                        title={product.is_visible ? 'Скрыть товар' : 'Показать товар'}
+                      >
+                        {product.is_visible !== false ? (
+                          <Eye className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        )}
+                      </Button>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
