@@ -5,7 +5,7 @@ import { Services } from "@/components/Services";
 import { Contact } from "@/components/Contact";
 import { Toaster } from "@/components/ui/toaster";
 
-export const Index = () => {
+const Index = () => {
   const currentYear = new Date().getFullYear();
 
   return (
@@ -85,4 +85,5 @@ export const Index = () => {
   );
 };
 
+export { Index };
 export default Index;

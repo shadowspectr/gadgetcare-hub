@@ -669,3 +669,5 @@ export const TelegramShop = () => {
     </div>
   );
 };
+
+export default TelegramShop;
