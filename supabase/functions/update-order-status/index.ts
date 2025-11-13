@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const [action, orderId] = callbackQuery.data.split('_');
+    const [action, _, orderId] = callbackQuery.data.split('_');
     const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
 
     if (!botToken) {
@@ -91,12 +91,12 @@ Deno.serve(async (req) => {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: '✅ Принять', callback_data: `accept_${orderId}` },
-              { text: '📦 Готов к выдаче', callback_data: `ready_${orderId}` }
+              { text: '✅ Принять', callback_data: `accept_order_${orderId}` },
+              { text: '📦 Готов к выдаче', callback_data: `ready_order_${orderId}` }
             ],
             [
-              { text: '✔️ Выдан', callback_data: `complete_${orderId}` },
-              { text: '❌ Отменить', callback_data: `cancel_${orderId}` }
+              { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` },
+              { text: '❌ Отменить', callback_data: `cancel_order_${orderId}` }
             ]
           ]
         }

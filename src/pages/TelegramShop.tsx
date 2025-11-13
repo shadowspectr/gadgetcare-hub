@@ -49,6 +49,14 @@ type CartItem = Product & {
 type TabType = "all" | "favorites" | "cart" | "profile";
 type FilterType = "all" | "available";
 
+interface Order {
+  id: string;
+  items: any;
+  total_amount: number;
+  status: string;
+  created_at: string;
+}
+
 export const TelegramShop = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -65,6 +73,7 @@ export const TelegramShop = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [telegramUser, setTelegramUser] = useState<any>(null);
+  const [userOrders, setUserOrders] = useState<Order[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -75,6 +84,7 @@ export const TelegramShop = () => {
       const user = window.Telegram.WebApp.initDataUnsafe.user;
       if (user) {
         setTelegramUser(user);
+        fetchUserOrders(user.id.toString());
       }
     }
     fetchProducts();
@@ -90,6 +100,21 @@ export const TelegramShop = () => {
       setCart(JSON.parse(savedCart));
     }
   }, []);
+
+  const fetchUserOrders = async (telegramUserId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('telegram_user_id', telegramUserId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUserOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -273,6 +298,11 @@ export const TelegramShop = () => {
       setPhoneNumber("");
       setAgreedToTerms(false);
       setIsCheckoutOpen(false);
+      
+      // Reload orders
+      if (telegramUser) {
+        fetchUserOrders(telegramUser.id.toString());
+      }
     } catch (error) {
       console.error("Error sending order:", error);
       toast({
@@ -542,6 +572,59 @@ export const TelegramShop = () => {
                     <p className="text-sm text-muted-foreground">Telegram ID:</p>
                     <p className="font-mono text-sm">{telegramUser.id}</p>
                   </div>
+                </div>
+
+                {/* Orders History */}
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="font-semibold mb-3">История заказов</h3>
+                  {userOrders.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      У вас пока нет заказов
+                    </p>
+                  ) : (
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                      {userOrders.map((order) => {
+                        const statusConfig = {
+                          pending: { label: 'Ожидает', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100' },
+                          accepted: { label: 'Принят', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' },
+                          ready: { label: 'Готов к выдаче', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' },
+                          completed: { label: 'Выдан', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100' },
+                          cancelled: { label: 'Отменен', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' }
+                        };
+                        const status = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.pending;
+                        
+                        return (
+                          <Card key={order.id} className="p-3">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="text-sm font-medium">Заказ #{order.id.slice(0, 8)}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(order.created_at).toLocaleString('ru-RU')}
+                                </p>
+                              </div>
+                              <span className={`text-xs px-2 py-1 rounded-full ${status.color}`}>
+                                {status.label}
+                              </span>
+                            </div>
+                            <div className="text-sm">
+                              <p className="text-muted-foreground mb-1">Товары:</p>
+                              {order.items.slice(0, 2).map((item: any, idx: number) => (
+                                <p key={idx} className="text-xs">• {item.name} x{item.quantity}</p>
+                              ))}
+                              {order.items.length > 2 && (
+                                <p className="text-xs text-muted-foreground">
+                                  +ещё {order.items.length - 2} товаров
+                                </p>
+                              )}
+                              <p className="font-semibold mt-2">
+                                Сумма: {Number(order.total_amount).toLocaleString()} ₽
+                              </p>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </>
             ) : (

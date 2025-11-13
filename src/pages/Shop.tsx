@@ -3,9 +3,13 @@ import { Navbar } from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Package, ShoppingCart } from "lucide-react";
+import { Loader2, Package, ShoppingCart, Heart, User, X, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Product {
   id: string;
@@ -17,29 +21,90 @@ interface Product {
   category?: string;
 }
 
+interface CartItem extends Product {
+  cartQuantity: number;
+}
+
+interface Order {
+  id: string;
+  items: any;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  phone_number: string;
+}
+
 export const Shop = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [showCart, setShowCart] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userOrders, setUserOrders] = useState<Order[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeView, setActiveView] = useState<"products" | "favorites" | "profile">("products");
   const { toast } = useToast();
 
   useEffect(() => {
     fetchProducts();
+    fetchUserOrders();
   }, []);
 
   useEffect(() => {
-    if (selectedCategories.length === 0) {
-      setFilteredProducts(products);
-    } else {
-      setFilteredProducts(
-        products.filter(p => 
-          p.category && selectedCategories.includes(p.category)
-        )
+    filterProducts();
+  }, [selectedCategories, products, searchQuery, favorites, activeView]);
+
+  const filterProducts = () => {
+    let filtered = products;
+
+    // Filter by search query
+    if (searchQuery) {
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
-  }, [selectedCategories, products]);
+
+    // Filter by categories
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(p => 
+        p.category && selectedCategories.includes(p.category)
+      );
+    }
+
+    // Filter by favorites view
+    if (activeView === "favorites") {
+      filtered = filtered.filter(p => favorites.has(p.id));
+    }
+
+    setFilteredProducts(filtered);
+  };
+
+  const fetchUserOrders = async () => {
+    try {
+      const savedPhone = localStorage.getItem('userPhone');
+      if (!savedPhone) return;
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('phone_number', savedPhone)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUserOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  };
 
   const toggleCategory = (category: string) => {
     setSelectedCategories(prev => 
@@ -52,23 +117,16 @@ export const Shop = () => {
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
-      console.log('Fetching products from database...');
-      
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('is_visible', true)
         .gt('quantity', 0)
         .order('name');
 
-      if (error) {
-        console.error('Error fetching products:', error);
-        throw error;
-      }
-
-      console.log('Products data:', data);
+      if (error) throw error;
 
       if (data) {
-        // Преобразуем данные из БД в формат, который ожидает компонент
         const formattedProducts: Product[] = data.map(product => ({
           id: product.id,
           name: product.name,
@@ -79,25 +137,16 @@ export const Shop = () => {
           category: product.category_name || undefined,
         }));
         setProducts(formattedProducts);
-        setFilteredProducts(formattedProducts);
         
-        // Извлекаем уникальные категории
         const uniqueCategories = Array.from(
           new Set(formattedProducts.map(p => p.category).filter(Boolean))
         ).sort() as string[];
         setCategories(uniqueCategories);
-      } else {
-        toast({
-          title: "Ошибка",
-          description: "Не удалось загрузить товары",
-          variant: "destructive",
-        });
       }
-    } catch (error) {
-      console.error('Error:', error);
+    } catch (error: any) {
       toast({
         title: "Ошибка",
-        description: "Не удалось загрузить товары из базы данных",
+        description: "Не удалось загрузить товары",
         variant: "destructive",
       });
     } finally {
@@ -105,23 +154,211 @@ export const Shop = () => {
     }
   };
 
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item =>
+          item.id === product.id
+            ? { ...item, cartQuantity: Math.min(item.cartQuantity + 1, product.quantity) }
+            : item
+        );
+      }
+      return [...prev, { ...product, cartQuantity: 1 }];
+    });
+    toast({
+      title: "Добавлено в корзину",
+      description: product.name,
+    });
+  };
+
+  const updateCartQuantity = (productId: string, newQuantity: number) => {
+    if (newQuantity === 0) {
+      setCart(prev => prev.filter(item => item.id !== productId));
+    } else {
+      setCart(prev =>
+        prev.map(item =>
+          item.id === productId ? { ...item, cartQuantity: newQuantity } : item
+        )
+      );
+    }
+  };
+
+  const toggleFavorite = (productId: string) => {
+    setFavorites(prev => {
+      const newFavorites = new Set(prev);
+      if (newFavorites.has(productId)) {
+        newFavorites.delete(productId);
+      } else {
+        newFavorites.add(productId);
+      }
+      return newFavorites;
+    });
+  };
+
+  const getTotalPrice = () => {
+    return cart.reduce((sum, item) => sum + item.price * item.cartQuantity, 0);
+  };
+
+  const handleCheckout = () => {
+    if (cart.length === 0) {
+      toast({
+        title: "Корзина пуста",
+        description: "Добавьте товары в корзину перед оформлением заказа",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowCart(false);
+    setShowCheckout(true);
+  };
+
+  const handleSubmitOrder = async () => {
+    if (!phoneNumber.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Введите номер телефона",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!agreedToTerms) {
+      toast({
+        title: "Ошибка",
+        description: "Необходимо согласие на обработку персональных данных",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const orderData = {
+        phoneNumber,
+        items: cart.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.cartQuantity,
+        })),
+        total: getTotalPrice(),
+        timestamp: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase.functions.invoke('send-telegram-order', {
+        body: orderData,
+      });
+
+      if (error) throw error;
+
+      localStorage.setItem('userPhone', phoneNumber);
+
+      toast({
+        title: "Заказ оформлен!",
+        description: "Мы свяжемся с вами в ближайшее время",
+      });
+
+      setCart([]);
+      setShowCheckout(false);
+      setPhoneNumber("");
+      setAgreedToTerms(false);
+      fetchUserOrders();
+    } catch (error: any) {
+      console.error('Error submitting order:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось оформить заказ. Попробуйте позже.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      pending: { label: 'Ожидает', variant: 'secondary' as const },
+      accepted: { label: 'Принят', variant: 'default' as const },
+      ready: { label: 'Готов к выдаче', variant: 'default' as const },
+      completed: { label: 'Выдан', variant: 'default' as const },
+      cancelled: { label: 'Отменен', variant: 'destructive' as const }
+    };
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <Navbar />
-      <main className="container mx-auto px-4 pt-24 pb-16">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">
-            Магазин <span className="text-primary">комплектующих</span>
-          </h1>
-          <p className="text-gray-600">
-            Качественные комплектующие для вашей техники
-          </p>
-          <p className="text-sm text-gray-500 mt-2">
-            Показано товаров: {filteredProducts.length} из {products.length}
-          </p>
+      
+      {/* Header */}
+      <div className="container mx-auto px-4 pt-24 pb-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">
+              Магазин <span className="text-primary">комплектующих</span>
+            </h1>
+            <p className="text-muted-foreground">
+              Качественные комплектующие для вашей техники
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={activeView === "products" ? "default" : "outline"}
+              onClick={() => setActiveView("products")}
+              size="sm"
+            >
+              Товары
+            </Button>
+            <Button
+              variant={activeView === "favorites" ? "default" : "outline"}
+              onClick={() => setActiveView("favorites")}
+              size="sm"
+              className="gap-2"
+            >
+              <Heart className="h-4 w-4" />
+              Избранное ({favorites.size})
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowCart(true)}
+              size="sm"
+              className="gap-2"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Корзина ({cart.length})
+            </Button>
+            <Button
+              variant={activeView === "profile" ? "default" : "outline"}
+              onClick={() => setActiveView("profile")}
+              size="sm"
+              className="gap-2"
+            >
+              <User className="h-4 w-4" />
+              Профиль
+            </Button>
+          </div>
         </div>
 
-        {categories.length > 0 && (
+        {/* Search */}
+        {activeView !== "profile" && (
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Поиск товаров..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Categories */}
+        {activeView !== "profile" && categories.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Категории товаров</CardTitle>
@@ -133,7 +370,7 @@ export const Shop = () => {
                   size="sm"
                   onClick={() => setSelectedCategories([])}
                 >
-                  Все категории
+                  Все
                 </Button>
                 {categories.map((category) => (
                   <Button
@@ -149,58 +386,102 @@ export const Shop = () => {
             </CardContent>
           </Card>
         )}
+      </div>
 
-        {isLoading ? (
+      {/* Main Content */}
+      <main className="container mx-auto px-4 pb-16">
+        {activeView === "profile" ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Мои заказы</CardTitle>
+              <CardDescription>История ваших заказов</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {userOrders.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">У вас пока нет заказов</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {userOrders.map((order) => (
+                    <Card key={order.id}>
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-lg">
+                              Заказ #{order.id.slice(0, 8)}
+                            </CardTitle>
+                            <CardDescription>
+                              {new Date(order.created_at).toLocaleString('ru-RU')}
+                            </CardDescription>
+                          </div>
+                          {getStatusBadge(order.status)}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {order.items.map((item: any, idx: number) => (
+                            <div key={idx} className="flex justify-between">
+                              <span>{item.name} x{item.quantity}</span>
+                              <span>{(item.price * item.quantity).toLocaleString()} ₽</span>
+                            </div>
+                          ))}
+                          <div className="border-t pt-2 flex justify-between font-bold">
+                            <span>Итого:</span>
+                            <span>{Number(order.total_amount).toLocaleString()} ₽</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : isLoading ? (
           <div className="flex justify-center items-center min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16">
-            <Package className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-xl font-semibold mb-2">
-              {products.length === 0 ? 'Товары временно недоступны' : 'Нет товаров в выбранных категориях'}
+              {activeView === "favorites" ? 'Нет избранных товаров' : 'Товары не найдены'}
             </h3>
-            <p className="text-gray-600">
-              {products.length === 0 
-                ? 'Попробуйте обновить страницу или зайдите позже'
-                : 'Попробуйте выбрать другие категории'}
+            <p className="text-muted-foreground">
+              {activeView === "favorites" 
+                ? 'Добавьте товары в избранное, нажав на ♥'
+                : 'Попробуйте изменить фильтры или поисковый запрос'}
             </p>
-            {products.length === 0 && (
-              <Button 
-                onClick={fetchProducts} 
-                className="mt-4"
-                variant="outline"
-              >
-                Обновить
-              </Button>
-            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
-              <Card key={product.id} className="hover:shadow-lg transition-shadow">
+              <Card key={product.id} className="hover:shadow-lg transition-shadow relative">
+                <button
+                  onClick={() => toggleFavorite(product.id)}
+                  className="absolute top-3 right-3 z-10 p-2 rounded-full bg-background/80 backdrop-blur hover:bg-background transition-colors"
+                >
+                  <Heart
+                    className={`h-5 w-5 ${
+                      favorites.has(product.id)
+                        ? 'fill-red-500 stroke-red-500'
+                        : 'stroke-muted-foreground'
+                    }`}
+                  />
+                </button>
                 <CardHeader>
-                  <div className="flex justify-between items-start mb-2">
-                    <CardTitle className="text-lg line-clamp-2">
-                      {product.name}
-                    </CardTitle>
-                    {product.quantity > 0 ? (
-                      <Badge variant="default" className="bg-green-500">
-                        В наличии
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">
-                        Нет в наличии
-                      </Badge>
-                    )}
-                  </div>
+                  <CardTitle className="text-lg line-clamp-2 pr-8">
+                    {product.name}
+                  </CardTitle>
                   {product.category && (
                     <CardDescription>{product.category}</CardDescription>
                   )}
                 </CardHeader>
                 <CardContent>
                   {product.description && (
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-3">
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
                       {product.description}
                     </p>
                   )}
@@ -209,19 +490,17 @@ export const Shop = () => {
                       <p className="text-2xl font-bold text-primary">
                         {product.price.toLocaleString('ru-RU')} ₽
                       </p>
-                      {product.quantity > 0 && (
-                        <p className="text-sm text-gray-500">
-                          Доступно: {product.quantity} шт.
-                        </p>
-                      )}
+                      <p className="text-sm text-muted-foreground">
+                        В наличии: {product.quantity} шт.
+                      </p>
                     </div>
                     <Button 
                       size="sm"
-                      disabled={product.quantity === 0}
+                      onClick={() => addToCart(product)}
                       className="gap-2"
                     >
                       <ShoppingCart className="h-4 w-4" />
-                      Заказать
+                      В корзину
                     </Button>
                   </div>
                 </CardContent>
@@ -230,6 +509,127 @@ export const Shop = () => {
           </div>
         )}
       </main>
+
+      {/* Cart Dialog */}
+      <Dialog open={showCart} onOpenChange={setShowCart}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Корзина</DialogTitle>
+            <DialogDescription>
+              {cart.length} товаров на сумму {getTotalPrice().toLocaleString()} ₽
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            {cart.length === 0 ? (
+              <div className="text-center py-8">
+                <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Корзина пуста</p>
+              </div>
+            ) : (
+              cart.map((item) => (
+                <div key={item.id} className="flex justify-between items-center border-b pb-4">
+                  <div className="flex-1">
+                    <h4 className="font-semibold">{item.name}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {item.price.toLocaleString()} ₽ × {item.cartQuantity}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateCartQuantity(item.id, item.cartQuantity - 1)}
+                    >
+                      -
+                    </Button>
+                    <span className="w-8 text-center">{item.cartQuantity}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateCartQuantity(item.id, item.cartQuantity + 1)}
+                      disabled={item.cartQuantity >= item.quantity}
+                    >
+                      +
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => updateCartQuantity(item.id, 0)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {cart.length > 0 && (
+            <div className="border-t pt-4">
+              <div className="flex justify-between mb-4">
+                <span className="font-bold text-lg">Итого:</span>
+                <span className="font-bold text-lg">{getTotalPrice().toLocaleString()} ₽</span>
+              </div>
+              <Button onClick={handleCheckout} className="w-full">
+                Оформить заказ
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout Dialog */}
+      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Оформление заказа</DialogTitle>
+            <DialogDescription>
+              Заполните контактные данные для подтверждения заказа
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="phone">Номер телефона *</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+7 (999) 123-45-67"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+            </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="terms"
+                checked={agreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+              />
+              <Label htmlFor="terms" className="text-sm leading-relaxed cursor-pointer">
+                Я согласен на обработку персональных данных в соответствии с ФЗ-152 "О персональных данных"
+              </Label>
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex justify-between mb-4">
+                <span className="font-bold">Итого:</span>
+                <span className="font-bold">{getTotalPrice().toLocaleString()} ₽</span>
+              </div>
+              <Button
+                onClick={handleSubmitOrder}
+                disabled={isSubmitting || !phoneNumber || !agreedToTerms}
+                className="w-full"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Отправка...
+                  </>
+                ) : (
+                  'Подтвердить заказ'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
