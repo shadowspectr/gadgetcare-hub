@@ -8,6 +8,7 @@ import { SettingsManager } from "@/components/admin/SettingsManager";
 import { ProductsManager } from "@/components/admin/ProductsManager";
 import { UsersManager } from "@/components/admin/UsersManager";
 import { WarehouseManager } from "@/components/admin/WarehouseManager";
+import { OrdersManager } from "@/components/admin/OrdersManager";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, LogOut } from "lucide-react";
 
@@ -88,14 +89,18 @@ export const Admin = () => {
           Выйти
         </Button>
       </div>
-      <Tabs defaultValue="warehouse" className="w-full">
+      <Tabs defaultValue="orders" className="w-full">
         <TabsList>
+          <TabsTrigger value="orders">Заказы</TabsTrigger>
           <TabsTrigger value="warehouse">Складской учет</TabsTrigger>
           <TabsTrigger value="products">Товары</TabsTrigger>
           <TabsTrigger value="services">Услуги</TabsTrigger>
           {isAdmin && <TabsTrigger value="users">Пользователи</TabsTrigger>}
           <TabsTrigger value="settings">Настройки</TabsTrigger>
         </TabsList>
+        <TabsContent value="orders">
+          <OrdersManager />
+        </TabsContent>
         <TabsContent value="warehouse">
           <WarehouseManager />
         </TabsContent>

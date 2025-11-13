@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      orders: {
+        Row: {
+          created_at: string
+          id: string
+          items: Json
+          phone_number: string
+          status: Database["public"]["Enums"]["order_status"]
+          telegram_user_id: string | null
+          telegram_username: string | null
+          total_amount: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          items: Json
+          phone_number: string
+          status?: Database["public"]["Enums"]["order_status"]
+          telegram_user_id?: string | null
+          telegram_username?: string | null
+          total_amount: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          items?: Json
+          phone_number?: string
+          status?: Database["public"]["Enums"]["order_status"]
+          telegram_user_id?: string | null
+          telegram_username?: string | null
+          total_amount?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           article: string | null
@@ -221,6 +260,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "employee" | "observer"
+      order_status: "pending" | "accepted" | "ready" | "completed" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -349,6 +389,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "employee", "observer"],
+      order_status: ["pending", "accepted", "ready", "completed", "cancelled"],
     },
   },
 } as const
