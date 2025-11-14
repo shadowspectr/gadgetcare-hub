@@ -62,7 +62,7 @@ export const Shop = () => {
 
     // Filter by search query
     if (searchQuery) {
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
       );
@@ -70,7 +70,7 @@ export const Shop = () => {
 
     // Filter by categories
     if (selectedCategories.length > 0) {
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.category && selectedCategories.includes(p.category)
       );
     }
@@ -78,12 +78,8 @@ export const Shop = () => {
     setFilteredProducts(filtered);
   };
 
-  const fetchUserOrders = async () => {
-    // Removed - no longer needed
-  };
-
   const toggleCategory = (category: string) => {
-    setSelectedCategories(prev => 
+    setSelectedCategories(prev =>
       prev.includes(category)
         ? prev.filter(c => c !== category)
         : [...prev, category]
@@ -113,7 +109,7 @@ export const Shop = () => {
           category: product.category_name || undefined,
         }));
         setProducts(formattedProducts);
-        
+
         const uniqueCategories = Array.from(
           new Set(formattedProducts.map(p => p.category).filter(Boolean))
         ).sort() as string[];
@@ -147,6 +143,8 @@ export const Shop = () => {
       description: product.name,
     });
   };
+
+  const updateCartQuantity = (productId: string, newQuantity: number) => {
     if (newQuantity === 0) {
       setCart(prev => prev.filter(item => item.id !== productId));
     } else {
@@ -158,7 +156,7 @@ export const Shop = () => {
     }
   };
 
-  const updateCartQuantity = (productId: string, newQuantity: number) => {
+  const getTotalPrice = () => {
     return cart.reduce((sum, item) => sum + item.price * item.cartQuantity, 0);
   };
 
@@ -238,14 +236,10 @@ export const Shop = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    // Removed - no longer needed
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <Navbar />
-      
+
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 py-3">
@@ -345,7 +339,7 @@ export const Shop = () => {
                         В наличии: {product.quantity} шт.
                       </p>
                     </div>
-                    <Button 
+                    <Button
                       size="sm"
                       onClick={() => addToCart(product)}
                       className="gap-2"
