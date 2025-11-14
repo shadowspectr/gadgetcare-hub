@@ -85,7 +85,19 @@ export const TelegramShop = () => {
       if (user) {
         setTelegramUser(user);
         fetchUserOrders(user.id.toString());
+      } else {
+        toast({
+          title: "Откройте в Telegram",
+          description: "Это приложение работает только в Telegram",
+          variant: "destructive",
+        });
       }
+    } else {
+      toast({
+        title: "Откройте в Telegram",
+        description: "Это приложение работает только в Telegram",
+        variant: "destructive",
+      });
     }
     fetchProducts();
     
