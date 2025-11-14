@@ -54,6 +54,18 @@ Deno.serve(async (req) => {
         break;
     }
 
+    // Get order details first
+    const { data: orderData, error: fetchError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching order:', fetchError);
+      throw fetchError;
+    }
+
     // Update order status
     const { error: updateError } = await supabase
       .from('orders')
@@ -66,6 +78,21 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Order ${orderId} status updated to ${status}`);
+
+    // Send notification to user if they have telegram_user_id
+    if (orderData.telegram_user_id) {
+      const userMessage = `📦 Статус вашего заказа #${orderId.slice(0, 8)} изменен:\n\n${statusText}`;
+      
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: orderData.telegram_user_id,
+          text: userMessage,
+          parse_mode: 'HTML'
+        })
+      });
+    }
 
     // Answer callback query
     await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
