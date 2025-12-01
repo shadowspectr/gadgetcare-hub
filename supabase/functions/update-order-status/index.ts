@@ -21,7 +21,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const [action, _, orderId] = callbackQuery.data.split('_');
+    const parts = String(callbackQuery.data || '').split('_');
+    if (parts.length < 3) {
+      console.error('Invalid callback data:', callbackQuery.data);
+      return new Response(JSON.stringify({ ok: false, error: 'Invalid callback data' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const [action, , ...idParts] = parts;
+    const orderId = idParts.join('_');
     const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
 
     if (!botToken) {
@@ -105,7 +115,8 @@ Deno.serve(async (req) => {
     });
 
     // Edit message to show new status
-    const newText = `${callbackQuery.message.text}\n\n⚡ Статус: ${statusText}`;
+    const originalText = callbackQuery.message?.text || '';
+    const newText = `${originalText}\n\n⚡ Статус: ${statusText}`;
     
     await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
       method: 'POST',
@@ -115,18 +126,7 @@ Deno.serve(async (req) => {
         message_id: callbackQuery.message.message_id,
         text: newText,
         parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '✅ Принять', callback_data: `accept_order_${orderId}` },
-              { text: '📦 Готов к выдаче', callback_data: `ready_order_${orderId}` }
-            ],
-            [
-              { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` },
-              { text: '❌ Отменить', callback_data: `cancel_order_${orderId}` }
-            ]
-          ]
-        }
+        reply_markup: callbackQuery.message.reply_markup
       })
     });
 

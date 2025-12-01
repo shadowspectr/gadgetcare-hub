@@ -79,26 +79,19 @@ export const TelegramShop = () => {
   useEffect(() => {
     // Инициализация Telegram WebApp
     if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
-      const user = window.Telegram.WebApp.initDataUnsafe.user;
-      if (user) {
-        setTelegramUser(user);
-        fetchUserOrders(user.id.toString());
-      } else {
-        toast({
-          title: "Откройте в Telegram",
-          description: "Это приложение работает только в Telegram",
-          variant: "destructive",
-        });
+      try {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+        const user = window.Telegram.WebApp.initDataUnsafe?.user;
+        if (user) {
+          setTelegramUser(user);
+          fetchUserOrders(user.id.toString());
+        }
+      } catch (e) {
+        console.warn('Telegram WebApp init error', e);
       }
-    } else {
-      toast({
-        title: "Откройте в Telegram",
-        description: "Это приложение работает только в Telegram",
-        variant: "destructive",
-      });
     }
+
     fetchProducts();
     
     // Load favorites and cart from localStorage
@@ -643,7 +636,7 @@ export const TelegramShop = () => {
               <div className="text-center py-8">
                 <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground">
-                  Откройте приложение через Telegram для просмотра профиля
+                  Профиль Telegram недоступен. Продолжайте оформлять заказ через корзину.
                 </p>
               </div>
             )}
