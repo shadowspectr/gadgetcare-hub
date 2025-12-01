@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Package, ShoppingCart, Heart, User, X, Search } from "lucide-react";
+import { Loader2, Package, ShoppingCart, X, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -23,15 +22,6 @@ interface Product {
 
 interface CartItem extends Product {
   cartQuantity: number;
-}
-
-interface Order {
-  id: string;
-  items: any;
-  total_amount: number;
-  status: string;
-  created_at: string;
-  phone_number: string;
 }
 
 export const Shop = () => {
@@ -60,7 +50,6 @@ export const Shop = () => {
   const filterProducts = () => {
     let filtered = products;
 
-    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -68,7 +57,6 @@ export const Shop = () => {
       );
     }
 
-    // Filter by categories
     if (selectedCategories.length > 0) {
       filtered = filtered.filter(p =>
         p.category && selectedCategories.includes(p.category)
@@ -240,7 +228,6 @@ export const Shop = () => {
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <Navbar />
 
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
@@ -262,7 +249,6 @@ export const Shop = () => {
             </Button>
           </div>
 
-          {/* Search */}
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -273,7 +259,6 @@ export const Shop = () => {
             />
           </div>
 
-          {/* Categories */}
           {categories.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               <Button
@@ -298,7 +283,6 @@ export const Shop = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-4 pb-16">
         {isLoading ? (
           <div className="flex justify-center items-center min-h-[400px]">
@@ -355,7 +339,6 @@ export const Shop = () => {
         )}
       </main>
 
-      {/* Cart Dialog */}
       <Dialog open={showCart} onOpenChange={setShowCart}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -422,7 +405,6 @@ export const Shop = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Checkout Dialog */}
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
         <DialogContent>
           <DialogHeader>

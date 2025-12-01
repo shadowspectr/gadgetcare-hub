@@ -250,6 +250,10 @@ export type Database = {
         Args: { admin_email: string; admin_password: string }
         Returns: Json
       }
+      decrement_product_quantity: {
+        Args: { product_id: string; quantity_to_subtract: number }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
