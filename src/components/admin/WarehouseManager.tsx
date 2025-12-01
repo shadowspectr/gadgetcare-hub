@@ -122,6 +122,7 @@ export const WarehouseManager = () => {
   const lowStockCount = products.filter(p => p.quantity > 0 && p.quantity <= p.min_quantity).length;
   const outOfStockCount = products.filter(p => p.quantity === 0).length;
   const totalValue = products.reduce((sum, p) => sum + (p.quantity * (p.retail_price || 0)), 0);
+  const categories = Array.from(new Set(products.map(p => p.category_name).filter(Boolean))) as string[];
 
   if (loading) {
     return (
@@ -133,7 +134,7 @@ export const WarehouseManager = () => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Всего товаров</CardDescription>
@@ -158,20 +159,37 @@ export const WarehouseManager = () => {
             <CardTitle className="text-3xl">{totalValue.toFixed(0)} ₽</CardTitle>
           </CardHeader>
         </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>Категории</CardDescription>
+            <CardTitle className="text-3xl">{categories.length}</CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Складской учет</CardTitle>
           <CardDescription>Управление остатками товаров на складе</CardDescription>
-          <div className="flex items-center gap-2 mt-4">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Поиск по названию, коду, артикулу или категории..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="max-w-md"
-            />
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-4">
+            <div className="flex items-center gap-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Поиск по названию, коду, артикулу или категории..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="max-w-md"
+              />
+            </div>
+            {categories.length > 0 && (
+              <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto text-xs">
+                {categories.map((cat) => (
+                  <Badge key={cat} variant="outline">
+                    {cat}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
