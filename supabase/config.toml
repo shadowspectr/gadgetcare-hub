@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.update-order-status]
 verify_jwt = false
+
+[functions.telegram-auth]
+verify_jwt = false
+
+[functions.telegram-chat]
+verify_jwt = false

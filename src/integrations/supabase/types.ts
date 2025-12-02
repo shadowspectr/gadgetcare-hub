@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_from_manager: boolean | null
+          message: string
+          order_id: string | null
+          telegram_user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_from_manager?: boolean | null
+          message: string
+          order_id?: string | null
+          telegram_user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_from_manager?: boolean | null
+          message?: string
+          order_id?: string | null
+          telegram_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
@@ -217,6 +252,72 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: string
+        }
+        Relationships: []
+      }
+      telegram_auth_codes: {
+        Row: {
+          code: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          phone: string | null
+          telegram_user_id: string
+          verified: boolean | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          phone?: string | null
+          telegram_user_id: string
+          verified?: boolean | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          phone?: string | null
+          telegram_user_id?: string
+          verified?: boolean | null
+        }
+        Relationships: []
+      }
+      telegram_users: {
+        Row: {
+          created_at: string | null
+          first_name: string | null
+          id: string
+          last_login: string | null
+          last_name: string | null
+          phone: string | null
+          telegram_user_id: string
+          username: string | null
+          verified: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          first_name?: string | null
+          id?: string
+          last_login?: string | null
+          last_name?: string | null
+          phone?: string | null
+          telegram_user_id: string
+          username?: string | null
+          verified?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          first_name?: string | null
+          id?: string
+          last_login?: string | null
+          last_name?: string | null
+          phone?: string | null
+          telegram_user_id?: string
+          username?: string | null
+          verified?: boolean | null
         }
         Relationships: []
       }

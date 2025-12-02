@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Loader2, Search, Heart, ShoppingCart, User, Home, Package, 
   Smartphone, Headphones, Watch, Tablet, Cpu, Monitor, Camera, 
   Gamepad2, Speaker, Cable, Battery, Zap, ChevronLeft, X, Clock,
-  CheckCircle2, Truck, XCircle, Info
+  CheckCircle2, Truck, XCircle, Info, MessageCircle, Send, KeyRound
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -152,6 +153,21 @@ export const TelegramShop = () => {
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  
+  // Auth state
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authStep, setAuthStep] = useState<'phone' | 'code'>('phone');
+  const [authPhone, setAuthPhone] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  
+  // Chat state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  
   const { toast } = useToast();
 
   // Fetch user orders
@@ -169,6 +185,122 @@ export const TelegramShop = () => {
       console.error('Error fetching orders:', error);
     }
   }, []);
+
+  // Send verification code
+  const sendVerificationCode = async () => {
+    if (!telegramUser?.id) {
+      toast({ title: "Ошибка", description: "Telegram ID не найден", variant: "destructive" });
+      return;
+    }
+    
+    setIsAuthLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('telegram-auth', {
+        body: {
+          action: 'send_code',
+          telegramUserId: telegramUser.id,
+          phone: authPhone
+        }
+      });
+
+      if (error) throw error;
+
+      toast({ title: "Код отправлен", description: "Проверьте личные сообщения в Telegram" });
+      setAuthStep('code');
+    } catch (error: any) {
+      console.error('Error sending code:', error);
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  // Verify code
+  const verifyCode = async () => {
+    if (!telegramUser?.id || !verificationCode) return;
+    
+    setIsAuthLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('telegram-auth', {
+        body: {
+          action: 'verify_code',
+          telegramUserId: telegramUser.id,
+          code: verificationCode
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setIsVerified(true);
+        setIsAuthOpen(false);
+        toast({ title: "Успешно!", description: "Вы авторизованы" });
+        localStorage.setItem('telegram_verified', telegramUser.id.toString());
+      } else {
+        toast({ title: "Ошибка", description: data.error || "Неверный код", variant: "destructive" });
+      }
+    } catch (error: any) {
+      console.error('Error verifying code:', error);
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  // Send chat message to manager
+  const sendChatMessage = async () => {
+    if (!chatMessage.trim() || !telegramUser?.id) return;
+    
+    setIsChatLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke('telegram-chat', {
+        body: {
+          action: 'send_message',
+          telegramUserId: telegramUser.id,
+          telegramUsername: telegramUser.username,
+          firstName: telegramUser.first_name,
+          lastName: telegramUser.last_name,
+          message: chatMessage,
+          orderId: selectedOrder?.id
+        }
+      });
+
+      if (error) throw error;
+
+      setChatMessages(prev => [...prev, {
+        message: chatMessage,
+        is_from_manager: false,
+        created_at: new Date().toISOString()
+      }]);
+      setChatMessage("");
+      toast({ title: "Сообщение отправлено", description: "Менеджер скоро ответит" });
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Load chat messages
+  const loadChatMessages = async (orderId?: string) => {
+    if (!telegramUser?.id) return;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('telegram-chat', {
+        body: {
+          action: 'get_messages',
+          telegramUserId: telegramUser.id,
+          orderId
+        }
+      });
+
+      if (error) throw error;
+      setChatMessages(data.messages || []);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
 
   useEffect(() => {
     // Initialize Telegram WebApp
@@ -196,6 +328,11 @@ export const TelegramShop = () => {
             console.log('Setting telegram user:', user);
             setTelegramUser(user);
             fetchUserOrders(user.id.toString());
+            // Check if already verified
+            const savedVerified = localStorage.getItem('telegram_verified');
+            if (savedVerified === user.id.toString()) {
+              setIsVerified(true);
+            }
           } else {
             console.warn('No user data in initDataUnsafe');
             // Try to parse from URL hash or search params (fallback for testing)
@@ -852,14 +989,34 @@ export const TelegramShop = () => {
                     </div>
                   )}
                   <div className="flex-1">
-                    <p className="font-semibold text-lg">
-                      {telegramUser.first_name} {telegramUser.last_name || ''}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-lg">
+                        {telegramUser.first_name} {telegramUser.last_name || ''}
+                      </p>
+                      {isVerified && (
+                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Подтверждён
+                        </Badge>
+                      )}
+                    </div>
                     {telegramUser.username && (
                       <p className="text-sm text-muted-foreground">@{telegramUser.username}</p>
                     )}
                   </div>
                 </div>
+
+                {/* Auth Button */}
+                {!isVerified && (
+                  <Button
+                    onClick={() => setIsAuthOpen(true)}
+                    variant="outline"
+                    className="w-full rounded-full gap-2 border-primary/30 text-primary"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Подтвердить аккаунт
+                  </Button>
+                )}
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-2 text-center">
@@ -1016,6 +1173,19 @@ export const TelegramShop = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Chat with Manager */}
+                <Button
+                  onClick={() => {
+                    loadChatMessages(selectedOrder.id);
+                    setIsChatOpen(true);
+                  }}
+                  variant="outline"
+                  className="w-full rounded-full gap-2"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Связаться с менеджером
+                </Button>
               </div>
             </>
           )}
@@ -1084,6 +1254,151 @@ export const TelegramShop = () => {
             >
               Подтвердить заказ
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auth Dialog */}
+      <Dialog open={isAuthOpen} onOpenChange={setIsAuthOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" />
+              Авторизация
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {authStep === 'phone' ? (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm">Номер телефона (опционально)</Label>
+                  <Input
+                    type="tel"
+                    placeholder="+7 (999) 123-45-67"
+                    value={authPhone}
+                    onChange={(e) => setAuthPhone(e.target.value)}
+                    className="h-12 rounded-xl"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Код подтверждения будет отправлен в личные сообщения Telegram
+                </p>
+                <Button
+                  onClick={sendVerificationCode}
+                  disabled={isAuthLoading}
+                  className="w-full h-12 rounded-full"
+                >
+                  {isAuthLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Получить код"
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm">Код подтверждения</Label>
+                  <Input
+                    type="text"
+                    placeholder="123456"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    className="h-12 rounded-xl text-center text-2xl tracking-widest"
+                    maxLength={6}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Введите 6-значный код из Telegram
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setAuthStep('phone')}
+                    className="flex-1 rounded-full"
+                  >
+                    Назад
+                  </Button>
+                  <Button
+                    onClick={verifyCode}
+                    disabled={isAuthLoading || verificationCode.length !== 6}
+                    className="flex-1 rounded-full"
+                  >
+                    {isAuthLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Подтвердить"
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Chat Dialog */}
+      <Dialog open={isChatOpen} onOpenChange={setIsChatOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              Чат с менеджером
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px] -mx-6 px-6">
+            {chatMessages.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Начните диалог с менеджером</p>
+              </div>
+            ) : (
+              chatMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.is_from_manager ? 'justify-start' : 'justify-end'}`}
+                >
+                  <div
+                    className={`max-w-[80%] p-3 rounded-2xl ${
+                      msg.is_from_manager
+                        ? 'bg-muted text-foreground'
+                        : 'bg-primary text-primary-foreground'
+                    }`}
+                  >
+                    <p className="text-sm">{msg.message}</p>
+                    <p className="text-[10px] opacity-70 mt-1">
+                      {new Date(msg.created_at).toLocaleTimeString('ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="pt-4 border-t shrink-0">
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="Напишите сообщение..."
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                className="min-h-[44px] max-h-[100px] rounded-xl resize-none"
+                rows={1}
+              />
+              <Button
+                onClick={sendChatMessage}
+                disabled={!chatMessage.trim() || isChatLoading}
+                size="icon"
+                className="h-11 w-11 rounded-full shrink-0"
+              >
+                {isChatLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
