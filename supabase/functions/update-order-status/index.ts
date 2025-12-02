@@ -6,219 +6,34 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  console.log('=== Update Order Status Webhook Called ===');
+  console.log('=== Telegram Webhook Called ===');
   console.log('Method:', req.method);
   
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
   try {
     const body = await req.json();
     console.log('Received webhook body:', JSON.stringify(body, null, 2));
 
-    // Handle callback_query from inline buttons
-    const callbackQuery = body.callback_query;
-    if (!callbackQuery) {
-      console.log('No callback_query in body, returning ok');
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    // Handle callback_query (inline button clicks for order status)
+    if (body.callback_query) {
+      return await handleOrderStatusUpdate(body.callback_query, botToken!, supabase);
     }
 
-    console.log('Callback data:', callbackQuery.data);
-    
-    // Parse callback data: format is "action_order_uuid"
-    // e.g., "accept_order_fc9edf94-e4a2-4b44-ae71-39e580d5dc27"
-    const callbackData = String(callbackQuery.data || '');
-    const match = callbackData.match(/^(accept|ready|complete|cancel)_order_(.+)$/);
-    
-    if (!match) {
-      console.error('Invalid callback data format:', callbackData);
-      // Answer callback to remove loading state
-      const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
-      if (botToken) {
-        await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            callback_query_id: callbackQuery.id,
-            text: 'Ошибка: неверный формат данных',
-            show_alert: true
-          })
-        });
-      }
-      return new Response(JSON.stringify({ ok: false, error: 'Invalid callback data' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    // Handle message replies (manager responding to customer)
+    if (body.message?.reply_to_message) {
+      return await handleManagerReply(body.message, botToken!, supabase);
     }
 
-    const [, action, orderId] = match;
-    console.log('Parsed action:', action, 'orderId:', orderId);
-
-    const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
-    if (!botToken) {
-      throw new Error('Missing TELEGRAM_BOT_TOKEN');
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Map action to status
-    const statusMap: Record<string, { status: string; text: string; emoji: string }> = {
-      'accept': { status: 'accepted', text: 'Принят', emoji: '✅' },
-      'ready': { status: 'ready', text: 'Готов к выдаче', emoji: '📦' },
-      'complete': { status: 'completed', text: 'Выдан', emoji: '✔️' },
-      'cancel': { status: 'cancelled', text: 'Отменён', emoji: '❌' }
-    };
-
-    const statusInfo = statusMap[action];
-    if (!statusInfo) {
-      throw new Error(`Unknown action: ${action}`);
-    }
-
-    console.log('Updating order status to:', statusInfo.status);
-
-    // Get order details first
-    const { data: orderData, error: fetchError } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching order:', fetchError);
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          callback_query_id: callbackQuery.id,
-          text: 'Ошибка: заказ не найден',
-          show_alert: true
-        })
-      });
-      throw fetchError;
-    }
-
-    console.log('Found order:', orderData.id, 'current status:', orderData.status);
-
-    // Update order status
-    const { error: updateError } = await supabase
-      .from('orders')
-      .update({ status: statusInfo.status, updated_at: new Date().toISOString() })
-      .eq('id', orderId);
-
-    if (updateError) {
-      console.error('Error updating order:', updateError);
-      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          callback_query_id: callbackQuery.id,
-          text: 'Ошибка при обновлении статуса',
-          show_alert: true
-        })
-      });
-      throw updateError;
-    }
-
-    console.log(`Order ${orderId} status updated to ${statusInfo.status}`);
-
-    // Answer callback query immediately to remove loading state
-    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        callback_query_id: callbackQuery.id,
-        text: `${statusInfo.emoji} Статус: ${statusInfo.text}`
-      })
-    });
-
-    // Send notification to user if they have telegram_user_id
-    if (orderData.telegram_user_id) {
-      const userMessage = `${statusInfo.emoji} *Статус заказа обновлён*\n\n` +
-        `Заказ #${orderId.slice(0, 8)}\n` +
-        `Новый статус: *${statusInfo.text}*`;
-      
-      try {
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: orderData.telegram_user_id,
-            text: userMessage,
-            parse_mode: 'Markdown'
-          })
-        });
-        console.log('User notification sent to:', orderData.telegram_user_id);
-      } catch (notifyError) {
-        console.error('Failed to notify user:', notifyError);
-      }
-    }
-
-    // Update the message with new status
-    const originalText = callbackQuery.message?.text || '';
-    
-    // Remove old status line if exists and add new one
-    const statusRegex = /\n\n⚡ Статус:.*$/;
-    const cleanText = originalText.replace(statusRegex, '');
-    const newText = `${cleanText}\n\n⚡ Статус: ${statusInfo.emoji} ${statusInfo.text}`;
-    
-    // Create updated keyboard based on current status
-    let updatedKeyboard;
-    if (statusInfo.status === 'completed' || statusInfo.status === 'cancelled') {
-      // No buttons for final states
-      updatedKeyboard = { inline_keyboard: [] };
-    } else {
-      // Show relevant next actions
-      const buttons = [];
-      if (statusInfo.status === 'accepted') {
-        buttons.push([
-          { text: '📦 Готов к выдаче', callback_data: `ready_order_${orderId}` },
-          { text: '❌ Отменить', callback_data: `cancel_order_${orderId}` }
-        ]);
-        buttons.push([
-          { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` }
-        ]);
-      } else if (statusInfo.status === 'ready') {
-        buttons.push([
-          { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` },
-          { text: '❌ Отменить', callback_data: `cancel_order_${orderId}` }
-        ]);
-      } else {
-        // pending - show all options
-        buttons.push([
-          { text: '✅ Принять', callback_data: `accept_order_${orderId}` },
-          { text: '📦 Готов к выдаче', callback_data: `ready_order_${orderId}` }
-        ]);
-        buttons.push([
-          { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` },
-          { text: '❌ Отменить', callback_data: `cancel_order_${orderId}` }
-        ]);
-      }
-      updatedKeyboard = { inline_keyboard: buttons };
-    }
-    
-    try {
-      await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: callbackQuery.message.chat.id,
-          message_id: callbackQuery.message.message_id,
-          text: newText,
-          parse_mode: 'Markdown',
-          reply_markup: updatedKeyboard
-        })
-      });
-      console.log('Message updated successfully');
-    } catch (editError) {
-      console.error('Failed to edit message:', editError);
-    }
-
-    return new Response(JSON.stringify({ ok: true, status: statusInfo.status }), {
+    // Just acknowledge other messages
+    return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
@@ -226,10 +41,212 @@ Deno.serve(async (req) => {
     console.error('Error in webhook handler:', error);
     return new Response(
       JSON.stringify({ ok: false, error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
+
+// Handle order status updates from inline buttons
+async function handleOrderStatusUpdate(callbackQuery: any, botToken: string, supabase: any) {
+  console.log('Processing order status update');
+  console.log('Callback data:', callbackQuery.data);
+  
+  const callbackData = String(callbackQuery.data || '');
+  const match = callbackData.match(/^(accept|ready|complete|cancel)_order_(.+)$/);
+  
+  if (!match) {
+    console.error('Invalid callback data format:', callbackData);
+    await answerCallback(botToken, callbackQuery.id, 'Ошибка: неверный формат', true);
+    return new Response(JSON.stringify({ ok: false }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  const [, action, orderId] = match;
+  console.log('Action:', action, 'Order ID:', orderId);
+
+  const statusMap: Record<string, { status: string; text: string; emoji: string }> = {
+    'accept': { status: 'accepted', text: 'Принят', emoji: '✅' },
+    'ready': { status: 'ready', text: 'Готов к выдаче', emoji: '📦' },
+    'complete': { status: 'completed', text: 'Выдан', emoji: '✔️' },
+    'cancel': { status: 'cancelled', text: 'Отменён', emoji: '❌' }
+  };
+
+  const statusInfo = statusMap[action];
+  if (!statusInfo) {
+    await answerCallback(botToken, callbackQuery.id, 'Неизвестное действие', true);
+    return new Response(JSON.stringify({ ok: false }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Get order
+  const { data: orderData, error: fetchError } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching order:', fetchError);
+    await answerCallback(botToken, callbackQuery.id, 'Заказ не найден', true);
+    return new Response(JSON.stringify({ ok: false }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Update order status
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({ status: statusInfo.status, updated_at: new Date().toISOString() })
+    .eq('id', orderId);
+
+  if (updateError) {
+    console.error('Error updating order:', updateError);
+    await answerCallback(botToken, callbackQuery.id, 'Ошибка обновления', true);
+    return new Response(JSON.stringify({ ok: false }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  console.log(`Order ${orderId} status updated to ${statusInfo.status}`);
+
+  // Answer callback
+  await answerCallback(botToken, callbackQuery.id, `${statusInfo.emoji} ${statusInfo.text}`);
+
+  // Notify user
+  if (orderData.telegram_user_id) {
+    const userMessage = `${statusInfo.emoji} *Статус заказа обновлён*\n\nЗаказ #${orderId.slice(0, 8)}\nСтатус: *${statusInfo.text}*`;
+    await sendMessage(botToken, orderData.telegram_user_id, userMessage);
+  }
+
+  // Update message
+  const originalText = callbackQuery.message?.text || '';
+  const statusRegex = /\n\n⚡ Статус:.*$/;
+  const cleanText = originalText.replace(statusRegex, '');
+  const newText = `${cleanText}\n\n⚡ Статус: ${statusInfo.emoji} ${statusInfo.text}`;
+  
+  const keyboard = getStatusKeyboard(statusInfo.status, orderId);
+  
+  await editMessage(botToken, callbackQuery.message.chat.id, callbackQuery.message.message_id, newText, keyboard);
+
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
+// Handle manager reply to customer message
+async function handleManagerReply(message: any, botToken: string, supabase: any) {
+  console.log('Processing manager reply');
+  
+  const replyToMessage = message.reply_to_message;
+  const managerReply = message.text;
+  
+  if (!managerReply) {
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Extract user telegram ID from original message
+  const idMatch = replyToMessage.text?.match(/🆔.*?ID:\s*`?(\d+)`?/);
+  const usernameMatch = replyToMessage.text?.match(/🔗\s*@(\w+)/);
+  
+  if (idMatch) {
+    const userTelegramId = idMatch[1];
+    console.log('Sending reply to user:', userTelegramId);
+    
+    // Send reply to user
+    const userMessage = `💬 *Ответ от менеджера:*\n\n${managerReply}`;
+    await sendMessage(botToken, userTelegramId, userMessage);
+
+    // Save to database
+    await supabase.from('chat_messages').insert({
+      telegram_user_id: userTelegramId,
+      message: managerReply,
+      is_from_manager: true
+    });
+
+    console.log('Reply sent successfully');
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
+// Helper functions
+async function answerCallback(botToken: string, callbackId: string, text: string, showAlert = false) {
+  await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      callback_query_id: callbackId,
+      text,
+      show_alert: showAlert
+    })
+  });
+}
+
+async function sendMessage(botToken: string, chatId: string, text: string) {
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: 'Markdown'
+    })
+  });
+}
+
+async function editMessage(botToken: string, chatId: number, messageId: number, text: string, keyboard: any) {
+  await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    })
+  });
+}
+
+function getStatusKeyboard(status: string, orderId: string) {
+  if (status === 'completed' || status === 'cancelled') {
+    return { inline_keyboard: [] };
+  }
+  
+  const buttons = [];
+  if (status === 'accepted') {
+    buttons.push([
+      { text: '📦 Готов к выдаче', callback_data: `ready_order_${orderId}` },
+      { text: '❌ Отменить', callback_data: `cancel_order_${orderId}` }
+    ]);
+    buttons.push([
+      { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` }
+    ]);
+  } else if (status === 'ready') {
+    buttons.push([
+      { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` },
+      { text: '❌ Отменить', callback_data: `cancel_order_${orderId}` }
+    ]);
+  } else {
+    buttons.push([
+      { text: '✅ Принять', callback_data: `accept_order_${orderId}` },
+      { text: '📦 Готов', callback_data: `ready_order_${orderId}` }
+    ]);
+    buttons.push([
+      { text: '✔️ Выдан', callback_data: `complete_order_${orderId}` },
+      { text: '❌ Отмена', callback_data: `cancel_order_${orderId}` }
+    ]);
+  }
+  
+  return { inline_keyboard: buttons };
+}
