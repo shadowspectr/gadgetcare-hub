@@ -19,6 +19,7 @@ declare global {
   interface Window {
     Telegram?: {
       WebApp: {
+        initData: string;
         initDataUnsafe: {
           user?: {
             id: number;
@@ -27,6 +28,9 @@ declare global {
             username?: string;
             photo_url?: string;
           };
+          query_id?: string;
+          auth_date?: number;
+          hash?: string;
         };
         ready: () => void;
         expand: () => void;
@@ -44,6 +48,10 @@ declare global {
           button_color?: string;
           button_text_color?: string;
         };
+        colorScheme: 'light' | 'dark';
+        isExpanded: boolean;
+        viewportHeight: number;
+        viewportStableHeight: number;
       };
     };
   }
@@ -164,19 +172,64 @@ export const TelegramShop = () => {
 
   useEffect(() => {
     // Initialize Telegram WebApp
-    if (window.Telegram?.WebApp) {
-      try {
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-        const user = window.Telegram.WebApp.initDataUnsafe?.user;
-        if (user) {
-          setTelegramUser(user);
-          fetchUserOrders(user.id.toString());
+    const initTelegram = () => {
+      console.log('=== Telegram WebApp Debug ===');
+      console.log('window.Telegram:', window.Telegram);
+      console.log('window.Telegram?.WebApp:', window.Telegram?.WebApp);
+      
+      if (window.Telegram?.WebApp) {
+        const tg = window.Telegram.WebApp;
+        
+        console.log('initData:', tg.initData);
+        console.log('initDataUnsafe:', JSON.stringify(tg.initDataUnsafe, null, 2));
+        console.log('user:', tg.initDataUnsafe?.user);
+        console.log('themeParams:', tg.themeParams);
+        
+        try {
+          tg.ready();
+          tg.expand();
+          
+          const user = tg.initDataUnsafe?.user;
+          console.log('Parsed user:', user);
+          
+          if (user) {
+            console.log('Setting telegram user:', user);
+            setTelegramUser(user);
+            fetchUserOrders(user.id.toString());
+          } else {
+            console.warn('No user data in initDataUnsafe');
+            // Try to parse from URL hash or search params (fallback for testing)
+            const urlParams = new URLSearchParams(window.location.search);
+            const tgWebAppData = urlParams.get('tgWebAppData');
+            if (tgWebAppData) {
+              try {
+                const decoded = decodeURIComponent(tgWebAppData);
+                const params = new URLSearchParams(decoded);
+                const userParam = params.get('user');
+                if (userParam) {
+                  const userData = JSON.parse(userParam);
+                  console.log('User from URL params:', userData);
+                  setTelegramUser(userData);
+                  fetchUserOrders(userData.id.toString());
+                }
+              } catch (e) {
+                console.error('Failed to parse tgWebAppData:', e);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Telegram WebApp init error:', e);
         }
-      } catch (e) {
-        console.warn('Telegram WebApp init error', e);
+      } else {
+        console.warn('Telegram WebApp not available - not running inside Telegram');
       }
-    }
+    };
+
+    // Try immediately
+    initTelegram();
+    
+    // Also try after a short delay in case script loads late
+    const timeout = setTimeout(initTelegram, 500);
 
     fetchProducts();
     
@@ -190,6 +243,8 @@ export const TelegramShop = () => {
     if (savedCart) {
       setCart(JSON.parse(savedCart));
     }
+    
+    return () => clearTimeout(timeout);
   }, [fetchUserOrders]);
 
   // Real-time order status updates
