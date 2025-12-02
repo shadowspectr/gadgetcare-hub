@@ -1,22 +1,23 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { Dashboard } from "@/components/admin/Dashboard";
+import { OrdersManagerNew } from "@/components/admin/OrdersManagerNew";
+import { WarehouseManagerNew } from "@/components/admin/WarehouseManagerNew";
 import { ServicesManager } from "@/components/admin/ServicesManager";
-import { SettingsManager } from "@/components/admin/SettingsManager";
-import { ProductsManager } from "@/components/admin/ProductsManager";
 import { UsersManager } from "@/components/admin/UsersManager";
-import { WarehouseManager } from "@/components/admin/WarehouseManager";
-import { OrdersManager } from "@/components/admin/OrdersManager";
+import { SettingsManager } from "@/components/admin/SettingsManager";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 type AppRole = "admin" | "employee" | "observer";
 
 export const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [userRoles, setUserRoles] = useState<AppRole[]>([]);
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -33,7 +34,6 @@ export const Admin = () => {
         return;
       }
 
-      // Fetch user roles
       const { data: roles, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -74,51 +74,66 @@ export const Admin = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case "dashboard":
+        return <Dashboard />;
+      case "orders":
+        return <OrdersManagerNew />;
+      case "warehouse":
+        return <WarehouseManagerNew />;
+      case "services":
+        return <ServicesManager />;
+      case "users":
+        return isAdmin ? <UsersManager /> : null;
+      case "settings":
+        return <SettingsManager />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  const getPageTitle = () => {
+    const titles: Record<string, string> = {
+      dashboard: "Дашборд",
+      orders: "Заказы",
+      warehouse: "Складской учет",
+      services: "Услуги",
+      users: "Пользователи",
+      settings: "Настройки"
+    };
+    return titles[activeTab] || "Админ-панель";
+  };
+
   return (
-    <div className="container mx-auto p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Панель администратора</h1>
-        <Button variant="outline" onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          Выйти
-        </Button>
-      </div>
-      <Tabs defaultValue="orders" className="w-full">
-        <TabsList>
-          <TabsTrigger value="orders">Заказы</TabsTrigger>
-          <TabsTrigger value="warehouse">Складской учет</TabsTrigger>
-          <TabsTrigger value="products">Товары</TabsTrigger>
-          <TabsTrigger value="services">Услуги</TabsTrigger>
-          {isAdmin && <TabsTrigger value="users">Пользователи</TabsTrigger>}
-          <TabsTrigger value="settings">Настройки</TabsTrigger>
-        </TabsList>
-        <TabsContent value="orders">
-          <OrdersManager />
-        </TabsContent>
-        <TabsContent value="warehouse">
-          <WarehouseManager />
-        </TabsContent>
-        <TabsContent value="products">
-          <ProductsManager />
-        </TabsContent>
-        <TabsContent value="services">
-          <ServicesManager />
-        </TabsContent>
-        {isAdmin && (
-          <TabsContent value="users">
-            <UsersManager />
-          </TabsContent>
-        )}
-        <TabsContent value="settings">
-          <SettingsManager />
-        </TabsContent>
-      </Tabs>
+    <div className="flex min-h-screen bg-muted/30 w-full">
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isCollapsed={sidebarCollapsed}
+        setIsCollapsed={setSidebarCollapsed}
+        isAdmin={isAdmin}
+        onLogout={handleLogout}
+      />
+      
+      <main className="flex-1 overflow-auto">
+        <div className="p-6 md:p-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-foreground">{getPageTitle()}</h1>
+            <p className="text-muted-foreground text-sm">
+              Доктор Гаджет — Панель управления
+            </p>
+          </div>
+          
+          {renderContent()}
+        </div>
+      </main>
     </div>
   );
 };
