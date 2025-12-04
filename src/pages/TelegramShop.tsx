@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,15 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { 
-  Loader2, Search, Heart, ShoppingCart, User, Home, Package, 
-  Smartphone, Headphones, Watch, Tablet, Cpu, Monitor, Camera, 
-  Gamepad2, Speaker, Cable, Battery, Zap, ChevronLeft, X, Clock,
-  CheckCircle2, Truck, XCircle, Info, MessageCircle, Send, KeyRound
+  Loader2, Package, ChevronLeft, X, Clock, CheckCircle2, Truck, XCircle, 
+  Info, MessageCircle, Send, KeyRound, Heart, ShoppingCart, User, ChevronDown
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { ProductCard, getCategoryIcon } from "@/components/telegram/ProductCard";
+import { ProductGridSkeleton } from "@/components/telegram/ProductSkeleton";
+import { TelegramHeader } from "@/components/telegram/TelegramHeader";
+import { BottomNav } from "@/components/telegram/BottomNav";
 
 declare global {
   interface Window {
@@ -29,30 +31,11 @@ declare global {
             username?: string;
             photo_url?: string;
           };
-          query_id?: string;
-          auth_date?: number;
-          hash?: string;
         };
         ready: () => void;
         expand: () => void;
-        close: () => void;
-        MainButton: {
-          show: () => void;
-          hide: () => void;
-          setText: (text: string) => void;
-          onClick: (callback: () => void) => void;
-        };
-        themeParams: {
-          bg_color?: string;
-          text_color?: string;
-          hint_color?: string;
-          button_color?: string;
-          button_text_color?: string;
-        };
+        themeParams: { bg_color?: string; text_color?: string };
         colorScheme: 'light' | 'dark';
-        isExpanded: boolean;
-        viewportHeight: number;
-        viewportStableHeight: number;
       };
     };
   }
@@ -68,10 +51,7 @@ type Product = {
   category_name: string | null;
 };
 
-type CartItem = Product & {
-  cartQuantity: number;
-};
-
+type CartItem = Product & { cartQuantity: number };
 type TabType = "all" | "favorites" | "cart" | "profile";
 type FilterType = "all" | "available";
 
@@ -84,75 +64,50 @@ interface Order {
   phone_number: string;
 }
 
-// Category icon mapping
-const getCategoryIcon = (categoryName: string | null) => {
-  if (!categoryName) return Package;
-  const lowerCategory = categoryName.toLowerCase();
-  
-  if (lowerCategory.includes('телефон') || lowerCategory.includes('смартфон') || lowerCategory.includes('iphone')) return Smartphone;
-  if (lowerCategory.includes('наушник') || lowerCategory.includes('airpods')) return Headphones;
-  if (lowerCategory.includes('часы') || lowerCategory.includes('watch')) return Watch;
-  if (lowerCategory.includes('планшет') || lowerCategory.includes('ipad')) return Tablet;
-  if (lowerCategory.includes('процессор') || lowerCategory.includes('чип')) return Cpu;
-  if (lowerCategory.includes('монитор') || lowerCategory.includes('экран') || lowerCategory.includes('дисплей')) return Monitor;
-  if (lowerCategory.includes('камер') || lowerCategory.includes('фото')) return Camera;
-  if (lowerCategory.includes('игр') || lowerCategory.includes('game')) return Gamepad2;
-  if (lowerCategory.includes('колонк') || lowerCategory.includes('динамик') || lowerCategory.includes('speaker')) return Speaker;
-  if (lowerCategory.includes('кабел') || lowerCategory.includes('провод') || lowerCategory.includes('шнур')) return Cable;
-  if (lowerCategory.includes('аккумулятор') || lowerCategory.includes('батаре')) return Battery;
-  if (lowerCategory.includes('заряд') || lowerCategory.includes('питан') || lowerCategory.includes('адаптер')) return Zap;
-  
-  return Package;
+const statusConfig = {
+  pending: { label: 'Ожидает подтверждения', color: 'bg-amber-500/10 text-amber-600 border-amber-500/20', icon: Clock },
+  accepted: { label: 'Принят в работу', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', icon: CheckCircle2 },
+  ready: { label: 'Готов к выдаче', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', icon: Truck },
+  completed: { label: 'Выдан', color: 'bg-slate-500/10 text-slate-600 border-slate-500/20', icon: CheckCircle2 },
+  cancelled: { label: 'Отменён', color: 'bg-red-500/10 text-red-600 border-red-500/20', icon: XCircle }
 };
 
-// Status configuration
-const statusConfig = {
-  pending: { 
-    label: 'Ожидает подтверждения', 
-    color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    icon: Clock 
-  },
-  accepted: { 
-    label: 'Принят в работу', 
-    color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-    icon: CheckCircle2 
-  },
-  ready: { 
-    label: 'Готов к выдаче', 
-    color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    icon: Truck 
-  },
-  completed: { 
-    label: 'Выдан', 
-    color: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20',
-    icon: CheckCircle2 
-  },
-  cancelled: { 
-    label: 'Отменён', 
-    color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
-    icon: XCircle 
-  }
-};
+const PAGE_SIZE = 50;
 
 export const TelegramShop = () => {
+  // Products state with pagination
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageRef = useRef(0);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  // UI state
   const [cart, setCart] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [activeFilter, setActiveFilter] = useState<FilterType>("available");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [categories, setCategories] = useState<string[]>([]);
+  
+  // Dialog state
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [telegramUser, setTelegramUser] = useState<any>(null);
-  const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  
+  // Checkout state
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  
+  // Telegram state
+  const [telegramUser, setTelegramUser] = useState<any>(null);
+  const [userOrders, setUserOrders] = useState<Order[]>([]);
   
   // Auth state
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -170,425 +125,214 @@ export const TelegramShop = () => {
   
   const { toast } = useToast();
 
-  // Fetch user orders
-  const fetchUserOrders = useCallback(async (telegramUserId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('telegram_user_id', telegramUserId)
-        .order('created_at', { ascending: false });
+  // Load products with pagination
+  const loadProducts = useCallback(async (page: number, append = false) => {
+    if (page === 0) setLoading(true);
+    else setLoadingMore(true);
 
-      if (error) throw error;
-      setUserOrders((data as Order[]) || []);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    }
-  }, []);
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
-  // Send verification code
-  const sendVerificationCode = async () => {
-    if (!telegramUser?.id) {
-      toast({ title: "Ошибка", description: "Telegram ID не найден", variant: "destructive" });
-      return;
-    }
-    
-    setIsAuthLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('telegram-auth', {
-        body: {
-          action: 'send_code',
-          telegramUserId: telegramUser.id,
-          phone: authPhone
-        }
-      });
-
-      if (error) throw error;
-
-      toast({ title: "Код отправлен", description: "Проверьте личные сообщения в Telegram" });
-      setAuthStep('code');
-    } catch (error: any) {
-      console.error('Error sending code:', error);
-      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
-    } finally {
-      setIsAuthLoading(false);
-    }
-  };
-
-  // Verify code
-  const verifyCode = async () => {
-    if (!telegramUser?.id || !verificationCode) return;
-    
-    setIsAuthLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('telegram-auth', {
-        body: {
-          action: 'verify_code',
-          telegramUserId: telegramUser.id,
-          code: verificationCode
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        setIsVerified(true);
-        setIsAuthOpen(false);
-        toast({ title: "Успешно!", description: "Вы авторизованы" });
-        localStorage.setItem('telegram_verified', telegramUser.id.toString());
-      } else {
-        toast({ title: "Ошибка", description: data.error || "Неверный код", variant: "destructive" });
-      }
-    } catch (error: any) {
-      console.error('Error verifying code:', error);
-      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
-    } finally {
-      setIsAuthLoading(false);
-    }
-  };
-
-  // Send chat message to manager
-  const sendChatMessage = async () => {
-    if (!chatMessage.trim() || !telegramUser?.id) return;
-    
-    setIsChatLoading(true);
-    try {
-      const { error } = await supabase.functions.invoke('telegram-chat', {
-        body: {
-          action: 'send_message',
-          telegramUserId: telegramUser.id,
-          telegramUsername: telegramUser.username,
-          firstName: telegramUser.first_name,
-          lastName: telegramUser.last_name,
-          message: chatMessage,
-          orderId: selectedOrder?.id
-        }
-      });
-
-      if (error) throw error;
-
-      setChatMessages(prev => [...prev, {
-        message: chatMessage,
-        is_from_manager: false,
-        created_at: new Date().toISOString()
-      }]);
-      setChatMessage("");
-      toast({ title: "Сообщение отправлено", description: "Менеджер скоро ответит" });
-    } catch (error: any) {
-      console.error('Error sending message:', error);
-      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
-
-  // Load chat messages
-  const loadChatMessages = async (orderId?: string) => {
-    if (!telegramUser?.id) return;
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('telegram-chat', {
-        body: {
-          action: 'get_messages',
-          telegramUserId: telegramUser.id,
-          orderId
-        }
-      });
-
-      if (error) throw error;
-      setChatMessages(data.messages || []);
-    } catch (error) {
-      console.error('Error loading messages:', error);
-    }
-  };
-
-  useEffect(() => {
-    // Initialize Telegram WebApp
-    const initTelegram = () => {
-      console.log('=== Telegram WebApp Debug ===');
-      console.log('window.Telegram:', window.Telegram);
-      console.log('window.Telegram?.WebApp:', window.Telegram?.WebApp);
-      
-      if (window.Telegram?.WebApp) {
-        const tg = window.Telegram.WebApp;
-        
-        console.log('initData:', tg.initData);
-        console.log('initDataUnsafe:', JSON.stringify(tg.initDataUnsafe, null, 2));
-        console.log('user:', tg.initDataUnsafe?.user);
-        console.log('themeParams:', tg.themeParams);
-        
-        try {
-          tg.ready();
-          tg.expand();
-          
-          const user = tg.initDataUnsafe?.user;
-          console.log('Parsed user:', user);
-          
-          if (user) {
-            console.log('Setting telegram user:', user);
-            setTelegramUser(user);
-            fetchUserOrders(user.id.toString());
-            // Check if already verified
-            const savedVerified = localStorage.getItem('telegram_verified');
-            if (savedVerified === user.id.toString()) {
-              setIsVerified(true);
-            }
-          } else {
-            console.warn('No user data in initDataUnsafe');
-            // Try to parse from URL hash or search params (fallback for testing)
-            const urlParams = new URLSearchParams(window.location.search);
-            const tgWebAppData = urlParams.get('tgWebAppData');
-            if (tgWebAppData) {
-              try {
-                const decoded = decodeURIComponent(tgWebAppData);
-                const params = new URLSearchParams(decoded);
-                const userParam = params.get('user');
-                if (userParam) {
-                  const userData = JSON.parse(userParam);
-                  console.log('User from URL params:', userData);
-                  setTelegramUser(userData);
-                  fetchUserOrders(userData.id.toString());
-                }
-              } catch (e) {
-                console.error('Failed to parse tgWebAppData:', e);
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Telegram WebApp init error:', e);
-        }
-      } else {
-        console.warn('Telegram WebApp not available - not running inside Telegram');
-      }
-    };
-
-    // Try immediately
-    initTelegram();
-    
-    // Also try after a short delay in case script loads late
-    const timeout = setTimeout(initTelegram, 500);
-
-    fetchProducts();
-    
-    // Load favorites and cart from localStorage
-    const savedFavorites = localStorage.getItem("telegramFavorites");
-    if (savedFavorites) {
-      setFavorites(new Set(JSON.parse(savedFavorites)));
-    }
-    
-    const savedCart = localStorage.getItem("telegramCart");
-    if (savedCart) {
-      setCart(JSON.parse(savedCart));
-    }
-    
-    return () => clearTimeout(timeout);
-  }, [fetchUserOrders]);
-
-  // Real-time order status updates
-  useEffect(() => {
-    if (!telegramUser?.id) return;
-
-    const channel = supabase
-      .channel('order-status-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `telegram_user_id=eq.${telegramUser.id}`
-        },
-        (payload) => {
-          const updatedOrder = payload.new as Order;
-          setUserOrders(prev => 
-            prev.map(order => 
-              order.id === updatedOrder.id ? updatedOrder : order
-            )
-          );
-          
-          // Show toast notification
-          const status = statusConfig[updatedOrder.status as keyof typeof statusConfig];
-          if (status) {
-            toast({
-              title: "Статус заказа обновлён",
-              description: `Заказ #${updatedOrder.id.slice(0, 8)}: ${status.label}`,
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [telegramUser?.id, toast]);
-
-  const fetchProducts = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from("products")
-      .select("*")
+      .select("id, name, description, retail_price, quantity, photo_url, category_name", { count: page === 0 ? "exact" : undefined })
       .eq("is_visible", true)
-      .order("category_name", { ascending: true })
-      .order("name");
+      .order("category_name")
+      .order("name")
+      .range(from, to);
 
     if (error) {
-      toast({
-        title: "Ошибка",
-        description: "Не удалось загрузить товары",
-        variant: "destructive",
-      });
+      toast({ title: "Ошибка загрузки", variant: "destructive" });
     } else {
-      setProducts(data || []);
-      const uniqueCategories = [...new Set(data?.map(p => p.category_name).filter(Boolean) as string[])];
-      setCategories(uniqueCategories);
-    }
-    setLoading(false);
-  };
-
-  const toggleFavorite = (productId: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const newFavorites = new Set(favorites);
-    if (newFavorites.has(productId)) {
-      newFavorites.delete(productId);
-    } else {
-      newFavorites.add(productId);
-    }
-    setFavorites(newFavorites);
-    localStorage.setItem("telegramFavorites", JSON.stringify([...newFavorites]));
-  };
-
-  const addToCart = (product: Product, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const existingItem = cart.find((item) => item.id === product.id);
-    let newCart: CartItem[];
-    
-    if (existingItem) {
-      if (existingItem.cartQuantity >= product.quantity) {
-        toast({
-          title: "Недостаточно товара",
-          description: "Достигнуто максимальное количество",
-          variant: "destructive",
-        });
-        return;
+      if (page === 0 && count !== null) setTotalCount(count);
+      
+      const newProducts = data || [];
+      if (newProducts.length < PAGE_SIZE) setHasMore(false);
+      
+      if (append) {
+        setProducts(prev => [...prev, ...newProducts]);
+      } else {
+        setProducts(newProducts);
       }
-      newCart = cart.map((item) =>
-        item.id === product.id
-          ? { ...item, cartQuantity: item.cartQuantity + 1 }
-          : item
-      );
-    } else {
-      newCart = [...cart, { ...product, cartQuantity: 1 }];
     }
-    
-    setCart(newCart);
-    localStorage.setItem("telegramCart", JSON.stringify(newCart));
-    toast({
-      title: "Добавлено в корзину",
-      description: product.name,
-    });
-  };
 
-  const removeFromCart = (productId: string) => {
-    const newCart = cart.filter((item) => item.id !== productId);
-    setCart(newCart);
-    localStorage.setItem("telegramCart", JSON.stringify(newCart));
-  };
+    setLoading(false);
+    setLoadingMore(false);
+  }, [toast]);
 
-  const updateCartQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
+  // Load categories
+  const loadCategories = useCallback(async () => {
+    const { data } = await supabase
+      .from("products")
+      .select("category_name")
+      .eq("is_visible", true)
+      .not("category_name", "is", null);
     
-    const product = cart.find((item) => item.id === productId);
-    if (product && quantity > product.quantity) {
-      toast({
-        title: "Недостаточно товара",
-        variant: "destructive",
-      });
-      return;
-    }
+    const unique = [...new Set(data?.map(p => p.category_name).filter(Boolean) as string[])];
+    setCategories(unique);
+  }, []);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
     
-    const newCart = cart.map((item) =>
-      item.id === productId ? { ...item, cartQuantity: quantity } : item
+    observerRef.current = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          pageRef.current += 1;
+          loadProducts(pageRef.current, true);
+        }
+      },
+      { threshold: 0.1 }
     );
-    setCart(newCart);
-    localStorage.setItem("telegramCart", JSON.stringify(newCart));
-  };
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = 
-      activeFilter === "all" ||
-      (activeFilter === "available" && product.quantity > 0);
-    const matchesCategory = 
-      selectedCategory === "all" || 
-      product.category_name === selectedCategory;
-    const matchesFavorites = activeTab === "favorites" ? favorites.has(product.id) : true;
-    return matchesSearch && matchesFilter && matchesCategory && matchesFavorites;
-  });
-
-  const totalPrice = cart.reduce(
-    (sum, item) => sum + (item.retail_price || 0) * item.cartQuantity,
-    0
-  );
-
-  const handleCheckoutClick = () => {
-    if (cart.length === 0) {
-      toast({
-        title: "Корзина пуста",
-        variant: "destructive",
-      });
-      return;
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
     }
-    setIsCartOpen(false);
-    setIsCheckoutOpen(true);
-  };
 
+    return () => observerRef.current?.disconnect();
+  }, [hasMore, loadingMore, loading, loadProducts]);
+
+  // Initialize
+  useEffect(() => {
+    // Telegram init
+    if (window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+      const user = tg.initDataUnsafe?.user;
+      if (user) {
+        setTelegramUser(user);
+        // Check verified
+        const saved = localStorage.getItem('telegram_verified');
+        if (saved === user.id.toString()) setIsVerified(true);
+        // Load orders
+        supabase.from('orders').select('*').eq('telegram_user_id', user.id.toString())
+          .order('created_at', { ascending: false })
+          .then(({ data }) => setUserOrders((data as Order[]) || []));
+      }
+    }
+
+    // Load data
+    loadProducts(0);
+    loadCategories();
+
+    // Load from localStorage
+    const savedFav = localStorage.getItem("telegramFavorites");
+    if (savedFav) setFavorites(new Set(JSON.parse(savedFav)));
+    const savedCart = localStorage.getItem("telegramCart");
+    if (savedCart) setCart(JSON.parse(savedCart));
+  }, [loadProducts, loadCategories]);
+
+  // Realtime order updates
+  useEffect(() => {
+    if (!telegramUser?.id) return;
+    const channel = supabase
+      .channel('order-updates')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `telegram_user_id=eq.${telegramUser.id}`
+      }, (payload) => {
+        const updated = payload.new as Order;
+        setUserOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+        const status = statusConfig[updated.status as keyof typeof statusConfig];
+        if (status) toast({ title: "Статус обновлён", description: status.label });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [telegramUser?.id, toast]);
+
+  // Filtered products (memoized)
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchSearch = !searchQuery || 
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchFilter = activeFilter === "all" || p.quantity > 0;
+      const matchCategory = selectedCategory === "all" || p.category_name === selectedCategory;
+      const matchFavorites = activeTab !== "favorites" || favorites.has(p.id);
+      return matchSearch && matchFilter && matchCategory && matchFavorites;
+    });
+  }, [products, searchQuery, activeFilter, selectedCategory, activeTab, favorites]);
+
+  const totalPrice = cart.reduce((sum, item) => sum + (item.retail_price || 0) * item.cartQuantity, 0);
+
+  // Cart actions
+  const toggleFavorite = useCallback((id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem("telegramFavorites", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  const addToCart = useCallback((product: Product, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setCart(prev => {
+      const existing = prev.find(i => i.id === product.id);
+      let next: CartItem[];
+      if (existing) {
+        if (existing.cartQuantity >= product.quantity) {
+          toast({ title: "Максимум достигнут", variant: "destructive" });
+          return prev;
+        }
+        next = prev.map(i => i.id === product.id ? { ...i, cartQuantity: i.cartQuantity + 1 } : i);
+      } else {
+        next = [...prev, { ...product, cartQuantity: 1 }];
+      }
+      localStorage.setItem("telegramCart", JSON.stringify(next));
+      toast({ title: "Добавлено", description: product.name });
+      return next;
+    });
+  }, [toast]);
+
+  const removeFromCart = useCallback((id: string) => {
+    setCart(prev => {
+      const next = prev.filter(i => i.id !== id);
+      localStorage.setItem("telegramCart", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const updateCartQty = useCallback((id: string, qty: number) => {
+    if (qty <= 0) return removeFromCart(id);
+    setCart(prev => {
+      const item = prev.find(i => i.id === id);
+      if (item && qty > item.quantity) {
+        toast({ title: "Недостаточно товара", variant: "destructive" });
+        return prev;
+      }
+      const next = prev.map(i => i.id === id ? { ...i, cartQuantity: qty } : i);
+      localStorage.setItem("telegramCart", JSON.stringify(next));
+      return next;
+    });
+  }, [removeFromCart, toast]);
+
+  // Checkout
   const handleCheckout = async () => {
-    if (!phoneNumber.trim()) {
-      toast({
-        title: "Укажите номер телефона",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!agreedToTerms) {
-      toast({
-        title: "Требуется согласие",
-        variant: "destructive",
-      });
+    if (!phoneNumber.trim() || !agreedToTerms) {
+      toast({ title: !phoneNumber.trim() ? "Укажите телефон" : "Требуется согласие", variant: "destructive" });
       return;
     }
 
     try {
-      const orderData = {
-        user: telegramUser,
-        phoneNumber,
-        items: cart.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: item.retail_price,
-          quantity: item.cartQuantity,
-        })),
-        total: totalPrice,
-        timestamp: new Date().toISOString(),
-      };
-
       const { error } = await supabase.functions.invoke('send-telegram-order', {
-        body: orderData,
+        body: {
+          user: telegramUser,
+          phoneNumber,
+          items: cart.map(i => ({ id: i.id, name: i.name, price: i.retail_price, quantity: i.cartQuantity })),
+          total: totalPrice,
+          timestamp: new Date().toISOString(),
+        },
       });
-
       if (error) throw error;
-
-      toast({
-        title: "Заказ оформлен!",
-        description: "Мы свяжемся с вами в ближайшее время",
-      });
-
+      
+      toast({ title: "Заказ оформлен!", description: "Мы свяжемся с вами" });
       setCart([]);
       localStorage.removeItem("telegramCart");
       setPhoneNumber("");
@@ -596,197 +340,145 @@ export const TelegramShop = () => {
       setIsCheckoutOpen(false);
       
       if (telegramUser) {
-        fetchUserOrders(telegramUser.id.toString());
+        const { data } = await supabase.from('orders').select('*')
+          .eq('telegram_user_id', telegramUser.id.toString())
+          .order('created_at', { ascending: false });
+        setUserOrders((data as Order[]) || []);
       }
     } catch (error) {
-      console.error("Error sending order:", error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось отправить заказ",
-        variant: "destructive",
-      });
+      toast({ title: "Ошибка отправки", variant: "destructive" });
     }
   };
 
-  // Product Card Component
-  const ProductCard = ({ product }: { product: Product }) => {
-    const CategoryIcon = getCategoryIcon(product.category_name);
-    
-    return (
-      <Card 
-        className="overflow-hidden border-0 shadow-sm bg-card animate-fade-in cursor-pointer active:scale-[0.98] transition-transform"
-        onClick={() => setSelectedProduct(product)}
-      >
-        <div className="relative aspect-square bg-muted/30">
-          {product.photo_url ? (
-            <img
-              src={product.photo_url}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted/50 to-muted">
-              <CategoryIcon className="h-12 w-12 text-muted-foreground/40" />
-            </div>
-          )}
-          <button
-            onClick={(e) => toggleFavorite(product.id, e)}
-            className="absolute top-2 right-2 p-2 bg-background/90 backdrop-blur-sm rounded-full shadow-lg transition-all active:scale-90"
-          >
-            <Heart
-              className={`h-4 w-4 transition-colors ${
-                favorites.has(product.id)
-                  ? "fill-red-500 text-red-500"
-                  : "text-muted-foreground"
-              }`}
-            />
-          </button>
-          {product.quantity === 0 && (
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-              <Badge variant="destructive" className="text-xs">
-                Нет в наличии
-              </Badge>
-            </div>
-          )}
-          {product.quantity > 0 && product.quantity < 5 && (
-            <Badge className="absolute bottom-2 left-2 bg-amber-500 text-white text-xs">
-              Осталось {product.quantity}
-            </Badge>
-          )}
-        </div>
-        
-        <div className="p-3 space-y-2">
-          <h3 className="font-medium text-sm line-clamp-2 leading-tight min-h-[2.5rem]">
-            {product.name}
-          </h3>
-          
-          <div className="flex items-end justify-between gap-2">
-            <div className="flex-1">
-              <p className="text-lg font-bold">
-                {product.retail_price?.toLocaleString()} ₽
-              </p>
-            </div>
-            <Button
-              onClick={(e) => addToCart(product, e)}
-              disabled={product.quantity === 0}
-              size="icon"
-              className="h-9 w-9 rounded-full shrink-0"
-            >
-              <ShoppingCart className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </Card>
-    );
+  // Auth functions
+  const sendVerificationCode = async () => {
+    if (!telegramUser?.id) return;
+    setIsAuthLoading(true);
+    try {
+      await supabase.functions.invoke('telegram-auth', {
+        body: { action: 'send_code', telegramUserId: telegramUser.id, phone: authPhone }
+      });
+      toast({ title: "Код отправлен" });
+      setAuthStep('code');
+    } catch (error: any) {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (!telegramUser?.id || !verificationCode) return;
+    setIsAuthLoading(true);
+    try {
+      const { data } = await supabase.functions.invoke('telegram-auth', {
+        body: { action: 'verify_code', telegramUserId: telegramUser.id, code: verificationCode }
+      });
+      if (data?.success) {
+        setIsVerified(true);
+        setIsAuthOpen(false);
+        toast({ title: "Авторизация успешна!" });
+        localStorage.setItem('telegram_verified', telegramUser.id.toString());
+      } else {
+        toast({ title: "Неверный код", variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Ошибка", variant: "destructive" });
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  // Chat functions
+  const loadChatMessages = async (orderId?: string) => {
+    if (!telegramUser?.id) return;
+    const { data } = await supabase.functions.invoke('telegram-chat', {
+      body: { action: 'get_messages', telegramUserId: telegramUser.id, orderId }
+    });
+    setChatMessages(data?.messages || []);
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatMessage.trim() || !telegramUser?.id) return;
+    setIsChatLoading(true);
+    try {
+      await supabase.functions.invoke('telegram-chat', {
+        body: {
+          action: 'send_message',
+          telegramUserId: telegramUser.id,
+          telegramUsername: telegramUser.username,
+          firstName: telegramUser.first_name,
+          message: chatMessage,
+          orderId: selectedOrder?.id
+        }
+      });
+      setChatMessages(prev => [...prev, { message: chatMessage, is_from_manager: false, created_at: new Date().toISOString() }]);
+      setChatMessage("");
+    } catch (error) {
+      toast({ title: "Ошибка отправки", variant: "destructive" });
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b">
-        <div className="px-4 py-3 space-y-3">
-          {/* Brand Header */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground font-bold text-lg shadow-lg">
-              Д
-            </div>
-            <div>
-              <h1 className="text-xl font-bold leading-tight">Доктор Гаджет</h1>
-              <p className="text-xs text-muted-foreground">Маркет</p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pb-24">
+      <TelegramHeader
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeFilter={activeFilter}
+        onFilterChange={setActiveFilter}
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
+        categories={categories}
+        totalCount={totalCount}
+      />
 
-          {/* Filter Tabs */}
-          <div className="flex gap-2">
-            <Button
-              variant={activeFilter === "available" ? "default" : "secondary"}
-              size="sm"
-              onClick={() => setActiveFilter("available")}
-              className="flex-1 rounded-full h-9"
-            >
-              В наличии
-            </Button>
-            <Button
-              variant={activeFilter === "all" ? "default" : "secondary"}
-              size="sm"
-              onClick={() => setActiveFilter("all")}
-              className="flex-1 rounded-full h-9"
-            >
-              Все товары
-            </Button>
-          </div>
-
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Поиск товаров..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 rounded-full bg-muted/50 border-0 h-10"
-            />
-          </div>
-
-          {/* Category Pills */}
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
-            <Button
-              variant={selectedCategory === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedCategory("all")}
-              className="rounded-full whitespace-nowrap shrink-0 h-8"
-            >
-              Все
-            </Button>
-            {categories.map((category) => {
-              const CategoryIcon = getCategoryIcon(category);
-              return (
-                <Button
-                  key={category}
-                  variant={selectedCategory === category ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedCategory(category)}
-                  className="rounded-full whitespace-nowrap shrink-0 h-8 gap-1.5"
-                >
-                  <CategoryIcon className="h-3.5 w-3.5" />
-                  {category}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Products Section */}
+      {/* Products Grid */}
       <div className="px-4 py-4">
         {loading ? (
-          <div className="flex justify-center items-center min-h-[400px]">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+          <ProductGridSkeleton count={6} />
         ) : (
           <>
             <div className="mb-4">
-              <h2 className="text-xl font-bold mb-1">
+              <h2 className="text-xl font-bold">
                 {activeTab === "favorites" ? "Избранное" : "Каталог"}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {filteredProducts.length} {filteredProducts.length === 1 ? 'товар' : filteredProducts.length < 5 ? 'товара' : 'товаров'}
+                {filteredProducts.length} товаров
               </p>
             </div>
 
             {filteredProducts.length === 0 ? (
-              <div className="text-center py-12 animate-fade-in">
+              <div className="text-center py-16">
                 <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
                 <p className="text-muted-foreground">Товары не найдены</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {filteredProducts.map((product, idx) => (
+                  <div key={product.id} style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }} className="animate-fade-in">
+                    <ProductCard
+                      product={product}
+                      isFavorite={favorites.has(product.id)}
+                      onToggleFavorite={toggleFavorite}
+                      onAddToCart={addToCart}
+                      onSelect={setSelectedProduct}
+                    />
+                  </div>
                 ))}
               </div>
             )}
+
+            {/* Load more trigger */}
+            <div ref={loadMoreRef} className="py-8 flex justify-center">
+              {loadingMore && <Loader2 className="h-6 w-6 animate-spin text-primary" />}
+              {hasMore && !loadingMore && filteredProducts.length > 0 && (
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                  <ChevronDown className="h-4 w-4" /> Загрузить ещё
+                </Button>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -798,75 +490,30 @@ export const TelegramShop = () => {
             <>
               <div className="relative aspect-square bg-muted">
                 {selectedProduct.photo_url ? (
-                  <img
-                    src={selectedProduct.photo_url}
-                    alt={selectedProduct.name}
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={selectedProduct.photo_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted/50 to-muted">
-                    {(() => {
-                      const CategoryIcon = getCategoryIcon(selectedProduct.category_name);
-                      return <CategoryIcon className="h-24 w-24 text-muted-foreground/30" />;
-                    })()}
+                  <div className="w-full h-full flex items-center justify-center">
+                    {(() => { const Icon = getCategoryIcon(selectedProduct.category_name); return <Icon className="h-24 w-24 text-muted-foreground/30" />; })()}
                   </div>
                 )}
-                <button
-                  onClick={() => setSelectedProduct(null)}
-                  className="absolute top-4 left-4 p-2 bg-background/90 backdrop-blur-sm rounded-full"
-                >
+                <button onClick={() => setSelectedProduct(null)} className="absolute top-4 left-4 p-2 bg-background/90 backdrop-blur-sm rounded-full">
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                <button
-                  onClick={(e) => toggleFavorite(selectedProduct.id, e)}
-                  className="absolute top-4 right-4 p-2 bg-background/90 backdrop-blur-sm rounded-full"
-                >
-                  <Heart
-                    className={`h-5 w-5 ${
-                      favorites.has(selectedProduct.id)
-                        ? "fill-red-500 text-red-500"
-                        : "text-muted-foreground"
-                    }`}
-                  />
+                <button onClick={(e) => toggleFavorite(selectedProduct.id, e)} className="absolute top-4 right-4 p-2 bg-background/90 backdrop-blur-sm rounded-full">
+                  <Heart className={`h-5 w-5 ${favorites.has(selectedProduct.id) ? "fill-red-500 text-red-500" : "text-muted-foreground"}`} />
                 </button>
               </div>
               <div className="p-4 space-y-4 overflow-y-auto max-h-[40vh]">
-                {selectedProduct.category_name && (
-                  <Badge variant="secondary" className="rounded-full">
-                    {selectedProduct.category_name}
-                  </Badge>
-                )}
+                {selectedProduct.category_name && <Badge variant="secondary">{selectedProduct.category_name}</Badge>}
                 <h2 className="text-xl font-bold">{selectedProduct.name}</h2>
-                
-                {selectedProduct.description && (
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-sm text-muted-foreground">Описание</h3>
-                    <p className="text-sm leading-relaxed">{selectedProduct.description}</p>
-                  </div>
-                )}
-                
+                {selectedProduct.description && <p className="text-sm text-muted-foreground">{selectedProduct.description}</p>}
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div>
-                    <p className="text-2xl font-bold">
-                      {selectedProduct.retail_price?.toLocaleString()} ₽
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedProduct.quantity > 0 
-                        ? `В наличии: ${selectedProduct.quantity} шт.` 
-                        : 'Нет в наличии'}
-                    </p>
+                    <p className="text-2xl font-bold">{selectedProduct.retail_price?.toLocaleString('ru-RU')} ₽</p>
+                    <p className="text-sm text-muted-foreground">{selectedProduct.quantity > 0 ? `В наличии: ${selectedProduct.quantity}` : 'Нет в наличии'}</p>
                   </div>
-                  <Button
-                    onClick={(e) => {
-                      addToCart(selectedProduct, e);
-                      setSelectedProduct(null);
-                    }}
-                    disabled={selectedProduct.quantity === 0}
-                    size="lg"
-                    className="rounded-full px-6"
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    В корзину
+                  <Button onClick={(e) => { addToCart(selectedProduct, e); setSelectedProduct(null); }} disabled={selectedProduct.quantity === 0} size="lg" className="rounded-full px-6">
+                    <ShoppingCart className="h-4 w-4 mr-2" /> В корзину
                   </Button>
                 </div>
               </div>
@@ -878,88 +525,47 @@ export const TelegramShop = () => {
       {/* Cart Dialog */}
       <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-              Корзина
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-primary" /> Корзина
             </DialogTitle>
           </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto space-y-3 -mx-6 px-6">
+          <div className="flex-1 overflow-y-auto space-y-3">
             {cart.length === 0 ? (
-              <div className="text-center py-12 animate-fade-in">
+              <div className="text-center py-12">
                 <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
                 <p className="text-muted-foreground">Корзина пуста</p>
               </div>
-            ) : (
-              cart.map((item) => {
-                const CategoryIcon = getCategoryIcon(item.category_name);
-                return (
-                  <div
-                    key={item.id}
-                    className="flex gap-3 p-3 rounded-2xl border bg-card animate-fade-in"
-                  >
-                    {item.photo_url ? (
-                      <img
-                        src={item.photo_url}
-                        alt={item.name}
-                        className="w-20 h-20 object-cover rounded-xl shrink-0"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-xl shrink-0 bg-muted flex items-center justify-center">
-                        <CategoryIcon className="h-8 w-8 text-muted-foreground/40" />
-                      </div>
-                    )}
-                    <div className="flex-1 space-y-2 min-w-0">
-                      <h4 className="font-semibold text-sm line-clamp-2">{item.name}</h4>
-                      <p className="text-base font-bold text-primary">
-                        {item.retail_price?.toLocaleString()} ₽
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateCartQuantity(item.id, item.cartQuantity - 1)}
-                          className="h-8 w-8 p-0 rounded-full"
-                        >
-                          -
-                        </Button>
-                        <span className="w-8 text-center text-sm font-medium">{item.cartQuantity}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => updateCartQuantity(item.id, item.cartQuantity + 1)}
-                          className="h-8 w-8 p-0 rounded-full"
-                        >
-                          +
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeFromCart(item.id)}
-                          className="ml-auto text-destructive hover:text-destructive h-8 w-8 p-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+            ) : cart.map(item => {
+              const Icon = getCategoryIcon(item.category_name);
+              return (
+                <div key={item.id} className="flex gap-3 p-3 rounded-2xl border bg-card">
+                  {item.photo_url ? (
+                    <img src={item.photo_url} alt={item.name} className="w-20 h-20 object-cover rounded-xl" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center"><Icon className="h-8 w-8 text-muted-foreground/40" /></div>
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <h4 className="font-semibold text-sm line-clamp-2">{item.name}</h4>
+                    <p className="text-base font-bold text-primary">{item.retail_price?.toLocaleString('ru-RU')} ₽</p>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => updateCartQty(item.id, item.cartQuantity - 1)} className="h-8 w-8 p-0 rounded-full">-</Button>
+                      <span className="w-8 text-center">{item.cartQuantity}</span>
+                      <Button size="sm" variant="outline" onClick={() => updateCartQty(item.id, item.cartQuantity + 1)} className="h-8 w-8 p-0 rounded-full">+</Button>
+                      <Button size="sm" variant="ghost" onClick={() => removeFromCart(item.id)} className="ml-auto text-destructive h-8 w-8 p-0"><X className="h-4 w-4" /></Button>
                     </div>
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
-
           {cart.length > 0 && (
-            <div className="pt-4 border-t space-y-4 shrink-0 bg-background">
+            <div className="pt-4 border-t space-y-4">
               <div className="flex justify-between items-center text-lg">
-                <span className="font-medium">Итого:</span>
-                <span className="font-bold text-xl text-primary">{totalPrice.toLocaleString()} ₽</span>
+                <span>Итого:</span>
+                <span className="font-bold text-xl text-primary">{totalPrice.toLocaleString('ru-RU')} ₽</span>
               </div>
-              <Button
-                onClick={handleCheckoutClick}
-                className="w-full h-12 rounded-full text-base font-semibold"
-                size="lg"
-              >
+              <Button onClick={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} className="w-full h-12 rounded-full">
                 Оформить заказ
               </Button>
             </div>
@@ -970,128 +576,63 @@ export const TelegramShop = () => {
       {/* Profile Dialog */}
       <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="text-xl">Профиль</DialogTitle>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" /> Профиль</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-4 -mx-6 px-6">
+          <div className="flex-1 overflow-y-auto space-y-4">
             {telegramUser ? (
               <>
-                <div className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
-                  {telegramUser.photo_url ? (
-                    <img 
-                      src={telegramUser.photo_url} 
-                      alt="Аватар" 
-                      className="h-16 w-16 rounded-full border-2 border-primary/20"
-                    />
-                  ) : (
-                    <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center">
-                      <User className="h-8 w-8 text-primary" />
-                    </div>
-                  )}
-                  <div className="flex-1">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground text-2xl font-bold shadow-lg">
+                    {telegramUser.first_name?.[0] || 'U'}
+                  </div>
+                  <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-lg">
-                        {telegramUser.first_name} {telegramUser.last_name || ''}
-                      </p>
-                      {isVerified && (
-                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 text-xs">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Подтверждён
-                        </Badge>
-                      )}
+                      <h3 className="font-bold text-lg">{telegramUser.first_name} {telegramUser.last_name || ''}</h3>
+                      {isVerified && <Badge className="bg-green-500/10 text-green-600 border-green-500/20">✓</Badge>}
                     </div>
-                    {telegramUser.username && (
-                      <p className="text-sm text-muted-foreground">@{telegramUser.username}</p>
-                    )}
+                    {telegramUser.username && <p className="text-sm text-muted-foreground">@{telegramUser.username}</p>}
                   </div>
                 </div>
-
-                {/* Auth Button */}
                 {!isVerified && (
-                  <Button
-                    onClick={() => setIsAuthOpen(true)}
-                    variant="outline"
-                    className="w-full rounded-full gap-2 border-primary/30 text-primary"
-                  >
-                    <KeyRound className="h-4 w-4" />
-                    Подтвердить аккаунт
+                  <Button onClick={() => setIsAuthOpen(true)} variant="outline" className="w-full rounded-full gap-2">
+                    <KeyRound className="h-4 w-4" /> Подтвердить аккаунт
                   </Button>
                 )}
-
-                {/* Stats */}
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="p-3 rounded-xl bg-muted/30">
-                    <div className="text-lg font-bold">{userOrders.length}</div>
-                    <div className="text-[10px] text-muted-foreground">заказов</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-muted/30">
-                    <div className="text-lg font-bold">{favorites.size}</div>
-                    <div className="text-[10px] text-muted-foreground">избранное</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-muted/30">
-                    <div className="text-lg font-bold">{cart.length}</div>
-                    <div className="text-[10px] text-muted-foreground">в корзине</div>
-                  </div>
+                  <div className="p-3 rounded-xl bg-muted/30"><div className="text-lg font-bold">{userOrders.length}</div><div className="text-[10px] text-muted-foreground">заказов</div></div>
+                  <div className="p-3 rounded-xl bg-muted/30"><div className="text-lg font-bold">{favorites.size}</div><div className="text-[10px] text-muted-foreground">избранное</div></div>
+                  <div className="p-3 rounded-xl bg-muted/30"><div className="text-lg font-bold">{cart.length}</div><div className="text-[10px] text-muted-foreground">в корзине</div></div>
                 </div>
-
-                {/* Orders History */}
                 <div className="space-y-3">
-                  <h3 className="font-semibold text-base">Мои заказы</h3>
+                  <h3 className="font-semibold">Мои заказы</h3>
                   {userOrders.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Package className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">У вас пока нет заказов</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {userOrders.map((order) => {
-                        const status = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.pending;
-                        const StatusIcon = status.icon;
-                        
-                        return (
-                          <Card 
-                            key={order.id} 
-                            className="p-4 border cursor-pointer hover:bg-muted/30 transition-colors animate-fade-in"
-                            onClick={() => setSelectedOrder(order)}
-                          >
-                            <div className="flex justify-between items-start mb-3">
-                              <div>
-                                <p className="text-sm font-semibold">Заказ #{order.id.slice(0, 8)}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {new Date(order.created_at).toLocaleDateString('ru-RU', {
-                                    day: 'numeric',
-                                    month: 'long',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </p>
-                              </div>
-                              <Badge variant="outline" className={`${status.color} gap-1`}>
-                                <StatusIcon className="h-3 w-3" />
-                                {status.label}
-                              </Badge>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <p className="text-xs text-muted-foreground">
-                                {order.items.length} {order.items.length === 1 ? 'товар' : 'товаров'}
-                              </p>
-                              <p className="font-bold">
-                                {Number(order.total_amount).toLocaleString()} ₽
-                              </p>
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  )}
+                    <div className="text-center py-8 text-muted-foreground"><Package className="h-12 w-12 mx-auto mb-2 opacity-30" /><p className="text-sm">Нет заказов</p></div>
+                  ) : userOrders.map(order => {
+                    const status = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.pending;
+                    const StatusIcon = status.icon;
+                    return (
+                      <Card key={order.id} className="p-4 border cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setSelectedOrder(order)}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="text-sm font-semibold">#{order.id.slice(0, 8)}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString('ru-RU')}</p>
+                          </div>
+                          <Badge variant="outline" className={`${status.color} gap-1`}><StatusIcon className="h-3 w-3" />{status.label}</Badge>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <p className="text-xs text-muted-foreground">{order.items.length} товаров</p>
+                          <p className="font-bold">{Number(order.total_amount).toLocaleString('ru-RU')} ₽</p>
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
               </>
             ) : (
-              <div className="text-center py-12 animate-fade-in">
+              <div className="text-center py-12">
                 <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-                <p className="text-muted-foreground">
-                  Откройте приложение через Telegram для авторизации
-                </p>
+                <p className="text-muted-foreground">Откройте через Telegram</p>
               </div>
             )}
           </div>
@@ -1103,14 +644,8 @@ export const TelegramShop = () => {
         <DialogContent className="max-w-md max-h-[85vh] overflow-hidden flex flex-col">
           {selectedOrder && (
             <>
-              <DialogHeader className="shrink-0">
-                <DialogTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-primary" />
-                  Заказ #{selectedOrder.id.slice(0, 8)}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="flex-1 overflow-y-auto space-y-4 -mx-6 px-6">
-                {/* Status */}
+              <DialogHeader><DialogTitle>Заказ #{selectedOrder.id.slice(0, 8)}</DialogTitle></DialogHeader>
+              <div className="flex-1 overflow-y-auto space-y-4">
                 {(() => {
                   const status = statusConfig[selectedOrder.status as keyof typeof statusConfig] || statusConfig.pending;
                   const StatusIcon = status.icon;
@@ -1120,71 +655,27 @@ export const TelegramShop = () => {
                         <StatusIcon className="h-8 w-8" />
                         <div>
                           <p className="font-semibold">{status.label}</p>
-                          <p className="text-xs opacity-70">
-                            {new Date(selectedOrder.created_at).toLocaleDateString('ru-RU', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
+                          <p className="text-xs opacity-70">{new Date(selectedOrder.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                       </div>
                     </div>
                   );
                 })()}
-
-                {/* Order Items */}
-                <div className="space-y-3">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                    Состав заказа
-                  </h3>
-                  <div className="space-y-2">
-                    {selectedOrder.items.map((item: any, idx: number) => (
-                      <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-muted/30">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{item.price?.toLocaleString()} ₽ × {item.quantity} шт.</p>
-                        </div>
-                        <p className="font-semibold">
-                          {((item.price || 0) * item.quantity).toLocaleString()} ₽
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Contact Info */}
                 <div className="space-y-2">
-                  <h3 className="font-semibold">Контактные данные</h3>
-                  <div className="p-3 rounded-xl bg-muted/30">
-                    <p className="text-sm">📞 {selectedOrder.phone_number}</p>
-                  </div>
+                  <h3 className="font-semibold flex items-center gap-2"><Info className="h-4 w-4" /> Состав</h3>
+                  {selectedOrder.items.map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between p-3 rounded-xl bg-muted/30">
+                      <div><p className="font-medium text-sm">{item.name}</p><p className="text-xs text-muted-foreground">{item.price?.toLocaleString('ru-RU')} ₽ × {item.quantity}</p></div>
+                      <p className="font-semibold">{((item.price || 0) * item.quantity).toLocaleString('ru-RU')} ₽</p>
+                    </div>
+                  ))}
                 </div>
-
-                {/* Total */}
-                <div className="pt-4 border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Итого:</span>
-                    <span className="text-2xl font-bold text-primary">
-                      {Number(selectedOrder.total_amount).toLocaleString()} ₽
-                    </span>
-                  </div>
+                <div className="pt-4 border-t flex justify-between items-center">
+                  <span>Итого:</span>
+                  <span className="text-2xl font-bold text-primary">{Number(selectedOrder.total_amount).toLocaleString('ru-RU')} ₽</span>
                 </div>
-
-                {/* Chat with Manager */}
-                <Button
-                  onClick={() => {
-                    loadChatMessages(selectedOrder.id);
-                    setIsChatOpen(true);
-                  }}
-                  variant="outline"
-                  className="w-full rounded-full gap-2"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Связаться с менеджером
+                <Button onClick={() => { loadChatMessages(selectedOrder.id); setIsChatOpen(true); }} variant="outline" className="w-full rounded-full gap-2">
+                  <MessageCircle className="h-4 w-4" /> Связаться с менеджером
                 </Button>
               </div>
             </>
@@ -1195,65 +686,29 @@ export const TelegramShop = () => {
       {/* Checkout Dialog */}
       <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Оформление заказа</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Оформление заказа</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-medium">Номер телефона *</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+7 (999) 123-45-67"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="h-12 rounded-xl"
-              />
+              <Label>Номер телефона *</Label>
+              <Input type="tel" placeholder="+7 (999) 123-45-67" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="h-12 rounded-xl" />
             </div>
-
             <div className="rounded-2xl border bg-muted/30 p-4 space-y-3">
               <p className="font-semibold text-sm">Состав заказа:</p>
               <div className="space-y-2 max-h-[150px] overflow-y-auto">
-                {cart.map((item) => (
+                {cart.map(item => (
                   <div key={item.id} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {item.name} <span className="font-medium">×{item.cartQuantity}</span>
-                    </span>
-                    <span className="font-medium">
-                      {(item.retail_price * item.cartQuantity).toLocaleString()} ₽
-                    </span>
+                    <span className="text-muted-foreground">{item.name} ×{item.cartQuantity}</span>
+                    <span className="font-medium">{(item.retail_price * item.cartQuantity).toLocaleString('ru-RU')} ₽</span>
                   </div>
                 ))}
               </div>
-              <div className="pt-3 border-t flex justify-between items-center">
-                <span className="font-semibold">Итого:</span>
-                <span className="font-bold text-xl text-primary">{totalPrice.toLocaleString()} ₽</span>
-              </div>
+              <div className="pt-3 border-t flex justify-between"><span className="font-semibold">Итого:</span><span className="font-bold text-xl text-primary">{totalPrice.toLocaleString('ru-RU')} ₽</span></div>
             </div>
-
             <div className="flex items-start space-x-3 p-4 rounded-xl bg-muted/20">
-              <Checkbox
-                id="terms"
-                checked={agreedToTerms}
-                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
-                className="mt-0.5"
-              />
-              <Label 
-                htmlFor="terms" 
-                className="text-xs leading-relaxed cursor-pointer text-muted-foreground"
-              >
-                Я согласен на обработку персональных данных в соответствии с ФЗ №152-ФЗ
-              </Label>
+              <Checkbox id="terms" checked={agreedToTerms} onCheckedChange={(c) => setAgreedToTerms(c as boolean)} />
+              <Label htmlFor="terms" className="text-xs text-muted-foreground cursor-pointer">Согласен на обработку персональных данных (ФЗ №152-ФЗ)</Label>
             </div>
-
-            <Button
-              onClick={handleCheckout}
-              className="w-full h-12 rounded-full text-base font-semibold"
-              size="lg"
-              disabled={!phoneNumber.trim() || !agreedToTerms}
-            >
-              Подтвердить заказ
-            </Button>
+            <Button onClick={handleCheckout} className="w-full h-12 rounded-full" disabled={!phoneNumber.trim() || !agreedToTerms}>Подтвердить заказ</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1261,74 +716,29 @@ export const TelegramShop = () => {
       {/* Auth Dialog */}
       <Dialog open={isAuthOpen} onOpenChange={setIsAuthOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-primary" />
-              Авторизация
-            </DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-primary" /> Авторизация</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {authStep === 'phone' ? (
               <>
                 <div className="space-y-2">
-                  <Label className="text-sm">Номер телефона (опционально)</Label>
-                  <Input
-                    type="tel"
-                    placeholder="+7 (999) 123-45-67"
-                    value={authPhone}
-                    onChange={(e) => setAuthPhone(e.target.value)}
-                    className="h-12 rounded-xl"
-                  />
+                  <Label>Номер телефона (опционально)</Label>
+                  <Input type="tel" placeholder="+7 (999) 123-45-67" value={authPhone} onChange={(e) => setAuthPhone(e.target.value)} className="h-12 rounded-xl" />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Код подтверждения будет отправлен в личные сообщения Telegram
-                </p>
-                <Button
-                  onClick={sendVerificationCode}
-                  disabled={isAuthLoading}
-                  className="w-full h-12 rounded-full"
-                >
-                  {isAuthLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Получить код"
-                  )}
+                <p className="text-xs text-muted-foreground">Код будет отправлен в Telegram</p>
+                <Button onClick={sendVerificationCode} disabled={isAuthLoading} className="w-full h-12 rounded-full">
+                  {isAuthLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Получить код"}
                 </Button>
               </>
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label className="text-sm">Код подтверждения</Label>
-                  <Input
-                    type="text"
-                    placeholder="123456"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    className="h-12 rounded-xl text-center text-2xl tracking-widest"
-                    maxLength={6}
-                  />
+                  <Label>Код подтверждения</Label>
+                  <Input type="text" placeholder="123456" value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} className="h-12 rounded-xl text-center text-2xl tracking-widest" maxLength={6} />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Введите 6-значный код из Telegram
-                </p>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setAuthStep('phone')}
-                    className="flex-1 rounded-full"
-                  >
-                    Назад
-                  </Button>
-                  <Button
-                    onClick={verifyCode}
-                    disabled={isAuthLoading || verificationCode.length !== 6}
-                    className="flex-1 rounded-full"
-                  >
-                    {isAuthLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Подтвердить"
-                    )}
+                  <Button variant="outline" onClick={() => setAuthStep('phone')} className="flex-1 rounded-full">Назад</Button>
+                  <Button onClick={verifyCode} disabled={isAuthLoading || verificationCode.length !== 6} className="flex-1 rounded-full">
+                    {isAuthLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Подтвердить"}
                   </Button>
                 </div>
               </>
@@ -1340,131 +750,38 @@ export const TelegramShop = () => {
       {/* Chat Dialog */}
       <Dialog open={isChatOpen} onOpenChange={setIsChatOpen}>
         <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              Чат с менеджером
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px] -mx-6 px-6">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" /> Чат с менеджером</DialogTitle></DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px]">
             {chatMessages.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Начните диалог с менеджером</p>
-              </div>
-            ) : (
-              chatMessages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${msg.is_from_manager ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-3 rounded-2xl ${
-                      msg.is_from_manager
-                        ? 'bg-muted text-foreground'
-                        : 'bg-primary text-primary-foreground'
-                    }`}
-                  >
-                    <p className="text-sm">{msg.message}</p>
-                    <p className="text-[10px] opacity-70 mt-1">
-                      {new Date(msg.created_at).toLocaleTimeString('ru-RU', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
+              <div className="text-center py-8 text-muted-foreground"><MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-30" /><p className="text-sm">Начните диалог</p></div>
+            ) : chatMessages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.is_from_manager ? 'justify-start' : 'justify-end'}`}>
+                <div className={`max-w-[80%] p-3 rounded-2xl ${msg.is_from_manager ? 'bg-muted' : 'bg-primary text-primary-foreground'}`}>
+                  <p className="text-sm">{msg.message}</p>
+                  <p className="text-[10px] opacity-70 mt-1">{new Date(msg.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
-          <div className="pt-4 border-t shrink-0">
+          <div className="pt-4 border-t">
             <div className="flex gap-2">
-              <Textarea
-                placeholder="Напишите сообщение..."
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                className="min-h-[44px] max-h-[100px] rounded-xl resize-none"
-                rows={1}
-              />
-              <Button
-                onClick={sendChatMessage}
-                disabled={!chatMessage.trim() || isChatLoading}
-                size="icon"
-                className="h-11 w-11 rounded-full shrink-0"
-              >
-                {isChatLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
+              <Textarea placeholder="Напишите..." value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} className="min-h-[44px] max-h-[100px] rounded-xl resize-none" rows={1} />
+              <Button onClick={sendChatMessage} disabled={!chatMessage.trim() || isChatLoading} size="icon" className="h-11 w-11 rounded-full">
+                {isChatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-xl border-t safe-area-bottom">
-        <div className="flex justify-around items-center h-16 px-2">
-          <button
-            onClick={() => setActiveTab("all")}
-            className={`flex flex-col items-center justify-center gap-0.5 px-4 py-2 rounded-xl transition-all ${
-              activeTab === "all" 
-                ? "text-primary bg-primary/10" 
-                : "text-muted-foreground"
-            }`}
-          >
-            <Home className={`h-5 w-5 transition-transform ${activeTab === "all" ? "scale-110" : ""}`} />
-            <span className="text-[10px] font-medium">Маркет</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("favorites")}
-            className={`flex flex-col items-center justify-center gap-0.5 px-4 py-2 rounded-xl transition-all ${
-              activeTab === "favorites" 
-                ? "text-primary bg-primary/10" 
-                : "text-muted-foreground"
-            }`}
-          >
-            <Heart className={`h-5 w-5 transition-transform ${activeTab === "favorites" ? "scale-110 fill-current" : ""}`} />
-            <span className="text-[10px] font-medium">Избранное</span>
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab("cart");
-              setIsCartOpen(true);
-            }}
-            className={`flex flex-col items-center justify-center gap-0.5 px-4 py-2 rounded-xl relative transition-all ${
-              activeTab === "cart" 
-                ? "text-primary bg-primary/10" 
-                : "text-muted-foreground"
-            }`}
-          >
-            <div className="relative">
-              <ShoppingCart className={`h-5 w-5 transition-transform ${activeTab === "cart" ? "scale-110" : ""}`} />
-              {cart.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-bold animate-scale-in">
-                  {cart.length}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] font-medium">Корзина</span>
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab("profile");
-              setIsProfileOpen(true);
-            }}
-            className={`flex flex-col items-center justify-center gap-0.5 px-4 py-2 rounded-xl transition-all ${
-              activeTab === "profile" 
-                ? "text-primary bg-primary/10" 
-                : "text-muted-foreground"
-            }`}
-          >
-            <User className={`h-5 w-5 transition-transform ${activeTab === "profile" ? "scale-110" : ""}`} />
-            <span className="text-[10px] font-medium">Профиль</span>
-          </button>
-        </div>
-      </div>
+      <BottomNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        cartCount={cart.length}
+        favoritesCount={favorites.size}
+        onCartClick={() => setIsCartOpen(true)}
+        onProfileClick={() => setIsProfileOpen(true)}
+      />
     </div>
   );
 };
