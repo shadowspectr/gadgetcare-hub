@@ -11,7 +11,7 @@ interface Product {
   category_name: string | null;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 
 export const useTelegramProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -23,9 +23,65 @@ export const useTelegramProducts = () => {
   const pageRef = useRef(0);
   const loadedIdsRef = useRef(new Set<string>());
 
-  // Initial load - get total count and categories
-  const initialize = useCallback(async () => {
+  // Load a specific page
+  const loadPage = useCallback(async (page: number) => {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error, count } = await supabase
+      .from("products")
+      .select("id, name, description, retail_price, quantity, photo_url, category_name", { count: page === 0 ? "exact" : undefined })
+      .eq("is_visible", true)
+      .order("category_name", { ascending: true })
+      .order("name", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      console.error("Error loading products page:", error);
+      return { products: [], count: 0 };
+    }
+
+    // Filter out already loaded products
+    const newProducts = (data || []).filter(p => !loadedIdsRef.current.has(p.id));
+    newProducts.forEach(p => loadedIdsRef.current.add(p.id));
+
+    return { products: newProducts, count: count || 0 };
+  }, []);
+
+  // Load more products (infinite scroll)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = pageRef.current + 1;
+      const { products: newProducts } = await loadPage(nextPage);
+
+      if (newProducts.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+
+      if (newProducts.length > 0) {
+        setProducts(prev => [...prev, ...newProducts]);
+        pageRef.current = nextPage;
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Error loading more products:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadPage, loadingMore, hasMore]);
+
+  // Refresh products
+  const refresh = useCallback(async () => {
+    pageRef.current = 0;
+    loadedIdsRef.current.clear();
+    setProducts([]);
+    setHasMore(true);
     setLoading(true);
+    
     try {
       // Get total count
       const { count, error: countError } = await supabase
@@ -49,71 +105,18 @@ export const useTelegramProducts = () => {
       setCategories(uniqueCategories);
 
       // Load first page
-      await loadPage(0);
+      const { products: firstPageData } = await loadPage(0);
+      setProducts(firstPageData);
+      
+      if (firstPageData.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
     } catch (error) {
-      console.error("Error initializing products:", error);
+      console.error("Error refreshing products:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  // Load a specific page
-  const loadPage = useCallback(async (page: number) => {
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    const { data, error } = await supabase
-      .from("products")
-      .select("id, name, description, retail_price, quantity, photo_url, category_name")
-      .eq("is_visible", true)
-      .order("category_name", { ascending: true })
-      .order("name", { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      console.error("Error loading products page:", error);
-      return [];
-    }
-
-    // Filter out already loaded products
-    const newProducts = (data || []).filter(p => !loadedIdsRef.current.has(p.id));
-    newProducts.forEach(p => loadedIdsRef.current.add(p.id));
-
-    return newProducts;
-  }, []);
-
-  // Load more products (infinite scroll)
-  const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
-
-    setLoadingMore(true);
-    try {
-      const nextPage = pageRef.current + 1;
-      const newProducts = await loadPage(nextPage);
-
-      if (newProducts.length < PAGE_SIZE) {
-        setHasMore(false);
-      }
-
-      if (newProducts.length > 0) {
-        setProducts(prev => [...prev, ...newProducts]);
-        pageRef.current = nextPage;
-      }
-    } catch (error) {
-      console.error("Error loading more products:", error);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [loadPage, loadingMore, hasMore]);
-
-  // Refresh products
-  const refresh = useCallback(async () => {
-    pageRef.current = 0;
-    loadedIdsRef.current.clear();
-    setProducts([]);
-    setHasMore(true);
-    await initialize();
-  }, [initialize]);
+  }, [loadPage]);
 
   // Initial load
   useEffect(() => {
@@ -142,8 +145,9 @@ export const useTelegramProducts = () => {
         setCategories(uniqueCategories);
 
         // Load first page
-        const firstPageData = await loadPage(0);
+        const { products: firstPageData, count: fetchedCount } = await loadPage(0);
         setProducts(firstPageData);
+        if (fetchedCount) setTotalCount(fetchedCount);
         
         if (firstPageData.length < PAGE_SIZE) {
           setHasMore(false);

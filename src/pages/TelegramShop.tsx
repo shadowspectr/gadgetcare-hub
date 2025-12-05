@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Loader2, Package, ChevronLeft, X, Clock, CheckCircle2, Truck, XCircle, 
-  Info, MessageCircle, Send, KeyRound, Heart, ShoppingCart, User, ChevronDown
+  Info, MessageCircle, Send, KeyRound, Heart, ShoppingCart, User, ChevronDown, Bell
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ import { ProductCard, getCategoryIcon } from "@/components/telegram/ProductCard"
 import { ProductGridSkeleton } from "@/components/telegram/ProductSkeleton";
 import { TelegramHeader } from "@/components/telegram/TelegramHeader";
 import { BottomNav } from "@/components/telegram/BottomNav";
+import { useOrderNotifications } from "@/hooks/useOrderNotifications";
 
 declare global {
   interface Window {
@@ -72,7 +73,8 @@ const statusConfig = {
   cancelled: { label: 'Отменён', color: 'bg-red-500/10 text-red-600 border-red-500/20', icon: XCircle }
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
+const MIN_VISIBLE_FOR_SCROLL = 20;
 
 export const TelegramShop = () => {
   // Products state with pagination
@@ -83,7 +85,6 @@ export const TelegramShop = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const pageRef = useRef(0);
-  const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // UI state
@@ -124,6 +125,9 @@ export const TelegramShop = () => {
   const [isChatLoading, setIsChatLoading] = useState(false);
   
   const { toast } = useToast();
+  
+  // Push notifications for order updates
+  const { requestPermission } = useOrderNotifications(telegramUser?.id);
 
   // Load products with pagination
   const loadProducts = useCallback(async (page: number, append = false) => {
@@ -154,11 +158,22 @@ export const TelegramShop = () => {
       } else {
         setProducts(newProducts);
       }
+      return newProducts.length;
     }
 
     setLoading(false);
     setLoadingMore(false);
+    return 0;
   }, [toast]);
+
+  // Load more products
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    pageRef.current += 1;
+    await loadProducts(pageRef.current, true);
+    setLoadingMore(false);
+    setLoading(false);
+  }, [loadProducts, loadingMore, hasMore]);
 
   // Load categories
   const loadCategories = useCallback(async () => {
@@ -174,24 +189,21 @@ export const TelegramShop = () => {
 
   // Infinite scroll observer
   useEffect(() => {
-    if (observerRef.current) observerRef.current.disconnect();
-    
-    observerRef.current = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
-          pageRef.current += 1;
-          loadProducts(pageRef.current, true);
+          loadMore();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '100px' }
     );
 
     if (loadMoreRef.current) {
-      observerRef.current.observe(loadMoreRef.current);
+      observer.observe(loadMoreRef.current);
     }
 
-    return () => observerRef.current?.disconnect();
-  }, [hasMore, loadingMore, loading, loadProducts]);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadMore]);
 
   // Initialize
   useEffect(() => {
@@ -256,6 +268,13 @@ export const TelegramShop = () => {
       return matchSearch && matchFilter && matchCategory && matchFavorites;
     });
   }, [products, searchQuery, activeFilter, selectedCategory, activeTab, favorites]);
+
+  // Auto-load more if filtered products are too few but more exist
+  useEffect(() => {
+    if (!loading && !loadingMore && hasMore && filteredProducts.length < MIN_VISIBLE_FOR_SCROLL && products.length < totalCount) {
+      loadMore();
+    }
+  }, [filteredProducts.length, loading, loadingMore, hasMore, products.length, totalCount, loadMore]);
 
   const totalPrice = cart.reduce((sum, item) => sum + (item.retail_price || 0) * item.cartQuantity, 0);
 
@@ -473,10 +492,13 @@ export const TelegramShop = () => {
             {/* Load more trigger */}
             <div ref={loadMoreRef} className="py-8 flex justify-center">
               {loadingMore && <Loader2 className="h-6 w-6 animate-spin text-primary" />}
-              {hasMore && !loadingMore && filteredProducts.length > 0 && (
-                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                  <ChevronDown className="h-4 w-4" /> Загрузить ещё
+              {hasMore && !loadingMore && (
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={loadMore}>
+                  <ChevronDown className="h-4 w-4" /> Загрузить ещё ({products.length} из {totalCount})
                 </Button>
+              )}
+              {!hasMore && products.length > 0 && (
+                <p className="text-sm text-muted-foreground">Все товары загружены ({products.length})</p>
               )}
             </div>
           </>
