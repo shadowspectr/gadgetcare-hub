@@ -344,7 +344,69 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      products_public: {
+        Row: {
+          article: string | null
+          category_name: string | null
+          category_path: string | null
+          code: string | null
+          country: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          is_visible: boolean | null
+          min_quantity: number | null
+          name: string | null
+          photo_url: string | null
+          quantity: number | null
+          retail_price: number | null
+          unit: string | null
+          updated_at: string | null
+          warranty_days: number | null
+          warranty_months: number | null
+        }
+        Insert: {
+          article?: string | null
+          category_name?: string | null
+          category_path?: string | null
+          code?: string | null
+          country?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_visible?: boolean | null
+          min_quantity?: number | null
+          name?: string | null
+          photo_url?: string | null
+          quantity?: number | null
+          retail_price?: number | null
+          unit?: string | null
+          updated_at?: string | null
+          warranty_days?: number | null
+          warranty_months?: number | null
+        }
+        Update: {
+          article?: string | null
+          category_name?: string | null
+          category_path?: string | null
+          code?: string | null
+          country?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          is_visible?: boolean | null
+          min_quantity?: number | null
+          name?: string | null
+          photo_url?: string | null
+          quantity?: number | null
+          retail_price?: number | null
+          unit?: string | null
+          updated_at?: string | null
+          warranty_days?: number | null
+          warranty_months?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       create_admin_user: {

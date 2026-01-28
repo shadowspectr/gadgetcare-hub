@@ -11,6 +11,17 @@ interface Product {
   category_name: string | null;
 }
 
+interface ProductPublicRow {
+  id: string;
+  name: string;
+  description: string | null;
+  retail_price: number | null;
+  quantity: number | null;
+  photo_url: string | null;
+  category_name: string | null;
+  is_visible: boolean;
+}
+
 const PAGE_SIZE = 100;
 
 export const useTelegramProducts = () => {
@@ -23,13 +34,13 @@ export const useTelegramProducts = () => {
   const pageRef = useRef(0);
   const loadedIdsRef = useRef(new Set<string>());
 
-  // Load a specific page
+  // Load a specific page using products_public view (excludes purchase_price for security)
   const loadPage = useCallback(async (page: number) => {
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
     const { data, error, count } = await supabase
-      .from("products")
+      .from("products_public" as "products")
       .select("id, name, description, retail_price, quantity, photo_url, category_name", { count: page === 0 ? "exact" : undefined })
       .eq("is_visible", true)
       .order("category_name", { ascending: true })
@@ -38,11 +49,24 @@ export const useTelegramProducts = () => {
 
     if (error) {
       console.error("Error loading products page:", error);
-      return { products: [], count: 0 };
+      return { products: [] as Product[], count: 0 };
     }
 
-    // Filter out already loaded products
-    const newProducts = (data || []).filter(p => !loadedIdsRef.current.has(p.id));
+    const rawData = (data || []) as unknown as ProductPublicRow[];
+    
+    // Filter out already loaded products and map to Product type
+    const newProducts: Product[] = rawData
+      .filter(p => !loadedIdsRef.current.has(p.id))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        retail_price: p.retail_price || 0,
+        quantity: p.quantity || 0,
+        photo_url: p.photo_url,
+        category_name: p.category_name,
+      }));
+    
     newProducts.forEach(p => loadedIdsRef.current.add(p.id));
 
     return { products: newProducts, count: count || 0 };
@@ -85,7 +109,7 @@ export const useTelegramProducts = () => {
     try {
       // Get total count
       const { count, error: countError } = await supabase
-        .from("products")
+        .from("products_public" as "products")
         .select("*", { count: "exact", head: true })
         .eq("is_visible", true);
 
@@ -94,14 +118,15 @@ export const useTelegramProducts = () => {
 
       // Get unique categories
       const { data: catData, error: catError } = await supabase
-        .from("products")
+        .from("products_public" as "products")
         .select("category_name")
         .eq("is_visible", true)
         .not("category_name", "is", null);
 
       if (catError) throw catError;
       
-      const uniqueCategories = [...new Set(catData?.map(p => p.category_name).filter(Boolean) as string[])];
+      const rawCatData = (catData || []) as unknown as { category_name: string }[];
+      const uniqueCategories = [...new Set(rawCatData.map(p => p.category_name).filter(Boolean))];
       setCategories(uniqueCategories);
 
       // Load first page
@@ -125,7 +150,7 @@ export const useTelegramProducts = () => {
       try {
         // Get total count
         const { count, error: countError } = await supabase
-          .from("products")
+          .from("products_public" as "products")
           .select("*", { count: "exact", head: true })
           .eq("is_visible", true);
 
@@ -134,14 +159,15 @@ export const useTelegramProducts = () => {
 
         // Get unique categories
         const { data: catData, error: catError } = await supabase
-          .from("products")
+          .from("products_public" as "products")
           .select("category_name")
           .eq("is_visible", true)
           .not("category_name", "is", null);
 
         if (catError) throw catError;
         
-        const uniqueCategories = [...new Set(catData?.map(p => p.category_name).filter(Boolean) as string[])];
+        const rawCatData = (catData || []) as unknown as { category_name: string }[];
+        const uniqueCategories = [...new Set(rawCatData.map(p => p.category_name).filter(Boolean))];
         setCategories(uniqueCategories);
 
         // Load first page
