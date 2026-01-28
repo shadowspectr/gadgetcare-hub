@@ -59,8 +59,9 @@ export const Shop = () => {
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
+      // Use products_public view to avoid exposing purchase_price (security)
       const { data, error } = await supabase
-        .from('products')
+        .from('products_public' as 'products')
         .select('*')
         .eq('is_visible', true)
         .order('category_name')
@@ -69,7 +70,18 @@ export const Shop = () => {
       if (error) throw error;
 
       if (data) {
-        const formattedProducts: Product[] = data.map(product => ({
+        interface ProductPublicRow {
+          id: string;
+          name: string;
+          retail_price: number | null;
+          quantity: number | null;
+          description: string | null;
+          photo_url: string | null;
+          category_name: string | null;
+        }
+        
+        const rawData = data as unknown as ProductPublicRow[];
+        const formattedProducts: Product[] = rawData.map(product => ({
           id: product.id,
           name: product.name,
           price: product.retail_price || 0,
@@ -85,7 +97,7 @@ export const Shop = () => {
         ).sort() as string[];
         setCategories(uniqueCategories);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({ title: "Ошибка загрузки", variant: "destructive" });
     } finally {
       setIsLoading(false);
