@@ -1,28 +1,23 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card } from "@/components/ui/card";
 
-export const ProductSkeleton = () => {
-  return (
-    <Card className="overflow-hidden border-0 bg-card">
-      <Skeleton className="aspect-square w-full" />
-      <div className="p-3 space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-2/3" />
-        <div className="flex justify-between items-center pt-1">
-          <Skeleton className="h-6 w-20" />
-          <Skeleton className="h-9 w-9 rounded-full" />
-        </div>
+export const ProductSkeleton = () => (
+  <div>
+    <Skeleton className="aspect-square w-full rounded-2xl" />
+    <div className="mt-3 space-y-2 px-0.5">
+      <Skeleton className="h-3.5 w-full rounded-lg" />
+      <Skeleton className="h-3.5 w-2/3 rounded-lg" />
+      <div className="flex justify-between items-center pt-0.5">
+        <Skeleton className="h-4 w-16 rounded-lg" />
+        <Skeleton className="h-8 w-8 rounded-full" />
       </div>
-    </Card>
-  );
-};
-
-export const ProductGridSkeleton = ({ count = 6 }: { count?: number }) => {
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <ProductSkeleton key={i} />
-      ))}
     </div>
-  );
-};
+  </div>
+);
+
+export const ProductGridSkeleton = ({ count = 6 }: { count?: number }) => (
+  <div className="grid grid-cols-2 gap-4">
+    {Array.from({ length: count }).map((_, i) => (
+      <ProductSkeleton key={i} />
+    ))}
+  </div>
+);
