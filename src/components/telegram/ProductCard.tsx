@@ -1,8 +1,6 @@
 import { memo } from "react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Heart, ShoppingCart, Package, Smartphone, Headphones, Watch, Tablet, Cpu, Monitor, Camera, Gamepad2, Speaker, Cable, Battery, Zap } from "lucide-react";
+import { Heart, Plus, Package, Smartphone, Headphones, Watch, Tablet, Cpu, Monitor, Camera, Gamepad2, Speaker, Cable, Battery, Zap } from "lucide-react";
 
 interface Product {
   id: string;
@@ -24,107 +22,99 @@ interface ProductCardProps {
 
 const getCategoryIcon = (categoryName: string | null) => {
   if (!categoryName) return Package;
-  const lowerCategory = categoryName.toLowerCase();
-  
-  if (lowerCategory.includes('телефон') || lowerCategory.includes('смартфон') || lowerCategory.includes('iphone')) return Smartphone;
-  if (lowerCategory.includes('наушник') || lowerCategory.includes('airpods')) return Headphones;
-  if (lowerCategory.includes('часы') || lowerCategory.includes('watch')) return Watch;
-  if (lowerCategory.includes('планшет') || lowerCategory.includes('ipad')) return Tablet;
-  if (lowerCategory.includes('процессор') || lowerCategory.includes('чип')) return Cpu;
-  if (lowerCategory.includes('монитор') || lowerCategory.includes('экран') || lowerCategory.includes('дисплей')) return Monitor;
-  if (lowerCategory.includes('камер') || lowerCategory.includes('фото')) return Camera;
-  if (lowerCategory.includes('игр') || lowerCategory.includes('game')) return Gamepad2;
-  if (lowerCategory.includes('колонк') || lowerCategory.includes('динамик') || lowerCategory.includes('speaker')) return Speaker;
-  if (lowerCategory.includes('кабел') || lowerCategory.includes('провод') || lowerCategory.includes('шнур')) return Cable;
-  if (lowerCategory.includes('аккумулятор') || lowerCategory.includes('батаре')) return Battery;
-  if (lowerCategory.includes('заряд') || lowerCategory.includes('питан') || lowerCategory.includes('адаптер')) return Zap;
-  
+  const lc = categoryName.toLowerCase();
+  if (lc.includes('телефон') || lc.includes('смартфон') || lc.includes('iphone')) return Smartphone;
+  if (lc.includes('наушник') || lc.includes('airpods')) return Headphones;
+  if (lc.includes('часы') || lc.includes('watch')) return Watch;
+  if (lc.includes('планшет') || lc.includes('ipad')) return Tablet;
+  if (lc.includes('процессор') || lc.includes('чип')) return Cpu;
+  if (lc.includes('монитор') || lc.includes('экран') || lc.includes('дисплей')) return Monitor;
+  if (lc.includes('камер') || lc.includes('фото')) return Camera;
+  if (lc.includes('игр') || lc.includes('game')) return Gamepad2;
+  if (lc.includes('колонк') || lc.includes('динамик') || lc.includes('speaker')) return Speaker;
+  if (lc.includes('кабел') || lc.includes('провод') || lc.includes('шнур')) return Cable;
+  if (lc.includes('аккумулятор') || lc.includes('батаре')) return Battery;
+  if (lc.includes('заряд') || lc.includes('питан') || lc.includes('адаптер')) return Zap;
   return Package;
 };
 
 export const ProductCard = memo(({ product, isFavorite, onToggleFavorite, onAddToCart, onSelect }: ProductCardProps) => {
   const CategoryIcon = getCategoryIcon(product.category_name);
-  
+  const isOutOfStock = product.quantity === 0;
+
   return (
-    <Card 
-      className="group overflow-hidden border-0 bg-gradient-to-b from-card to-card/80 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer active:scale-[0.98]"
+    <div
+      className="group cursor-pointer"
       onClick={() => onSelect(product)}
     >
-      <div className="relative aspect-square bg-gradient-to-br from-muted/20 to-muted/60 overflow-hidden">
+      {/* Image */}
+      <div className="relative aspect-square rounded-2xl bg-muted/40 overflow-hidden mb-3">
         {product.photo_url ? (
           <img
             src={product.photo_url}
             alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
             loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5">
-              <CategoryIcon className="h-10 w-10 text-primary/40" />
-            </div>
+            <CategoryIcon className="h-12 w-12 text-muted-foreground/20" />
           </div>
         )}
-        
-        {/* Favorite button with glow effect */}
+
+        {/* Favorite */}
         <button
           onClick={(e) => onToggleFavorite(product.id, e)}
-          className={`absolute top-2 right-2 p-2.5 rounded-full shadow-lg transition-all duration-200 active:scale-90 ${
-            isFavorite 
-              ? 'bg-red-500 shadow-red-500/30' 
-              : 'bg-background/95 backdrop-blur-sm hover:bg-background'
+          className={`absolute top-2.5 right-2.5 p-2 rounded-full transition-all duration-200 active:scale-90 ${
+            isFavorite
+              ? "bg-destructive/90 text-destructive-foreground"
+              : "bg-background/70 backdrop-blur-md text-muted-foreground hover:bg-background/90"
           }`}
         >
-          <Heart
-            className={`h-4 w-4 transition-colors ${
-              isFavorite
-                ? "fill-white text-white"
-                : "text-muted-foreground"
-            }`}
-          />
+          <Heart className={`h-3.5 w-3.5 ${isFavorite ? "fill-current" : ""}`} />
         </button>
-        
-        {/* Out of stock overlay */}
-        {product.quantity === 0 && (
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
-            <Badge variant="secondary" className="bg-muted text-muted-foreground font-medium">
+
+        {/* Out of stock */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center">
+            <span className="text-xs font-medium text-muted-foreground bg-background/80 px-3 py-1.5 rounded-full">
               Нет в наличии
-            </Badge>
+            </span>
           </div>
         )}
-        
-        {/* Low stock badge */}
-        {product.quantity > 0 && product.quantity < 5 && (
-          <div className="absolute bottom-2 left-2">
-            <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-lg shadow-amber-500/20">
+
+        {/* Low stock */}
+        {!isOutOfStock && product.quantity > 0 && product.quantity < 5 && (
+          <div className="absolute bottom-2.5 left-2.5">
+            <span className="text-[10px] font-medium text-amber-700 bg-amber-100 dark:bg-amber-900/50 dark:text-amber-300 px-2 py-1 rounded-full">
               Осталось {product.quantity}
-            </Badge>
+            </span>
           </div>
         )}
       </div>
-      
-      <div className="p-3 space-y-2">
-        <h3 className="font-medium text-sm line-clamp-2 leading-snug min-h-[2.5rem] text-foreground/90">
+
+      {/* Info */}
+      <div className="space-y-1.5 px-0.5">
+        <p className="text-[13px] leading-snug text-foreground/80 line-clamp-2 min-h-[2.25rem]">
           {product.name}
-        </h3>
-        
-        <div className="flex items-end justify-between gap-2">
-          <div className="flex-1">
-            <p className="text-lg font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-              {product.retail_price?.toLocaleString('ru-RU')} ₽
-            </p>
-          </div>
-          <Button
-            onClick={(e) => onAddToCart(product, e)}
-            disabled={product.quantity === 0}
-            size="icon"
-            className="h-9 w-9 rounded-full shrink-0 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-          >
-            <ShoppingCart className="h-4 w-4" />
-          </Button>
+        </p>
+        <div className="flex items-center justify-between">
+          <span className="text-[15px] font-semibold text-foreground tracking-tight">
+            {product.retail_price?.toLocaleString('ru-RU')} ₽
+          </span>
+          {!isOutOfStock && (
+            <Button
+              onClick={(e) => onAddToCart(product, e)}
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8 rounded-full"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 });
 
